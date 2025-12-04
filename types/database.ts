@@ -11,34 +11,37 @@ export interface Database {
       users: {
         Row: {
           id: string;
-          username: string;
-          display_name: string;
+          username: string | null;
+          display_name: string | null;
           profile_image_url: string | null;
           bio: string | null;
           points: number;
           check_ins_count: number;
+          email_confirmed_points_awarded: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id: string;
-          username: string;
-          display_name: string;
+          username?: string | null;
+          display_name?: string | null;
           profile_image_url?: string | null;
           bio?: string | null;
           points?: number;
           check_ins_count?: number;
+          email_confirmed_points_awarded?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          username?: string;
-          display_name?: string;
+          username?: string | null;
+          display_name?: string | null;
           profile_image_url?: string | null;
           bio?: string | null;
           points?: number;
           check_ins_count?: number;
+          email_confirmed_points_awarded?: boolean;
           created_at?: string;
           updated_at?: string;
         };

@@ -4,8 +4,8 @@ import { AuthError } from '@supabase/supabase-js';
 export interface SignUpInput {
   email: string;
   password: string;
-  displayName: string;
-  username: string;
+  displayName?: string;
+  username?: string;
   isOrganizer?: boolean;
   organizationName?: string;
 }
@@ -17,9 +17,9 @@ export interface LoginInput {
 
 export class AuthService {
   static async signUp(input: SignUpInput) {
-    const { email, password, displayName, username, isOrganizer, organizationName } = input;
+    const { email, password } = input;
 
-    // Create auth user
+    // Create auth user - profile is auto-created by database trigger
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -27,37 +27,6 @@ export class AuthService {
 
     if (authError) throw authError;
     if (!authData.user) throw new Error('Failed to create user');
-
-    // Create user profile
-    const { error: profileError } = await supabase.from('users').insert({
-      id: authData.user.id,
-      username,
-      display_name: displayName,
-      points: 0,
-      check_ins_count: 0,
-    });
-
-    if (profileError) {
-      // Clean up auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      throw profileError;
-    }
-
-    // If organizer, create organizer profile
-    if (isOrganizer && organizationName) {
-      const { error: organizerError } = await supabase.from('organizers').insert({
-        id: authData.user.id,
-        organization_name: organizationName,
-        is_verified: false,
-      });
-
-      if (organizerError) {
-        // Clean up if organizer profile creation fails
-        await supabase.from('users').delete().eq('id', authData.user.id);
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        throw organizerError;
-      }
-    }
 
     return authData;
   }
@@ -85,7 +54,10 @@ export class AuthService {
       error,
     } = await supabase.auth.getUser();
 
-    if (error) throw error;
+    // "Auth session missing" is expected when not logged in - not an error
+    if (error && error.message !== 'Auth session missing!') {
+      throw error;
+    }
     return user;
   }
 
@@ -105,13 +77,10 @@ export class AuthService {
       .from('organizers')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 = no rows found
-      throw error;
-    }
-    return data || null;
+    if (error) throw error;
+    return data;
   }
 
   static async updateProfile(userId: string, updates: { display_name?: string; bio?: string; profile_image_url?: string }) {
@@ -119,6 +88,21 @@ export class AuthService {
 
     if (error) throw error;
     return data;
+  }
+
+  static async awardEmailConfirmationPoints(userId: string, currentPoints: number) {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        points: currentPoints + 50,
+        email_confirmed_points_awarded: true,
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    // Fetch and return updated profile
+    return await AuthService.getUserProfile(userId);
   }
 
   static async verifyOrganizerEmail(token: string, type: string) {

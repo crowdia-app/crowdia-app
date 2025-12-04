@@ -1,5 +1,4 @@
-import { TouchableOpacity, StyleSheet, View } from 'react-native';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuthStore } from '@/stores/authStore';
@@ -18,27 +17,34 @@ export default function HomeScreen() {
   };
 
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <View style={styles.headerContainer}>
-          <ThemedText type="title" style={styles.headerTitle}>Crowdia</ThemedText>
-        </View>
-      }>
+    <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">
-          {user ? `Welcome, ${userProfile?.display_name || 'User'}!` : 'Welcome to Crowdia'}
+          {user
+            ? userProfile?.display_name
+              ? `Welcome, ${userProfile.display_name}!`
+              : 'Welcome!'
+            : 'Welcome to Crowdia'}
         </ThemedText>
       </ThemedView>
 
       {user && (
         <ThemedView style={styles.userInfoContainer}>
           <ThemedText type="subtitle">Your Profile</ThemedText>
+          {userProfile?.display_name && (
+            <ThemedText>
+              <ThemedText type="defaultSemiBold">Name:</ThemedText> {userProfile.display_name}
+            </ThemedText>
+          )}
           <ThemedText>
-            <ThemedText type="defaultSemiBold">Username:</ThemedText> {userProfile?.username}
+            <ThemedText type="defaultSemiBold">Email:</ThemedText> {user.email}
           </ThemedText>
           <ThemedText>
-            <ThemedText type="defaultSemiBold">Points:</ThemedText> {userProfile?.points || 0}
+            <ThemedText type="defaultSemiBold">Email Status:</ThemedText>{' '}
+            {user.email_confirmed_at ? '✅ Confirmed' : '⚠️ Not Confirmed'}
+          </ThemedText>
+          <ThemedText>
+            <ThemedText type="defaultSemiBold">Username:</ThemedText> {userProfile?.username || 'Not set'}
           </ThemedText>
           <ThemedText>
             <ThemedText type="defaultSemiBold">Check-ins:</ThemedText> {userProfile?.check_ins_count || 0}
@@ -80,39 +86,44 @@ export default function HomeScreen() {
         </ThemedView>
       )}
 
-      <ThemedView style={styles.featureContainer}>
-        <ThemedText type="subtitle">Current Features</ThemedText>
-        <ThemedText>✅ User Authentication (Email/Password)</ThemedText>
-        <ThemedText>✅ User Profiles with Points System</ThemedText>
-        <ThemedText>✅ Organizer Registration & Verification</ThemedText>
-        <ThemedText>✅ Session Management</ThemedText>
-        <ThemedText>🔄 Event Feed (Coming Soon)</ThemedText>
-        <ThemedText>🔄 Event Check-in System (Coming Soon)</ThemedText>
-        <ThemedText>🔄 Admin Panel (Coming Soon)</ThemedText>
-      </ThemedView>
-
-      <ThemedView style={styles.statusContainer}>
-        <ThemedText type="subtitle">App Status</ThemedText>
-        <ThemedText>
-          Phase 1 Development - Authentication & User Management Complete
-        </ThemedText>
-        <ThemedText style={styles.smallText}>
-          Database: Connected | Auth: Active | Tests: Included
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {user && userProfile && (
+        <ThemedView style={styles.pointsContainer}>
+          <ThemedText type="subtitle">Points</ThemedText>
+          <ThemedView style={styles.pointsTotal}>
+            <ThemedText type="title">{userProfile.points || 0}</ThemedText>
+            <ThemedText style={styles.pointsLabel}>total points</ThemedText>
+          </ThemedView>
+          <ThemedView style={styles.pointsList}>
+            <ThemedView style={styles.pointsItem}>
+              <ThemedText>Account Created</ThemedText>
+              <ThemedText type="defaultSemiBold">+10</ThemedText>
+            </ThemedView>
+            {userProfile.email_confirmed_points_awarded && (
+              <ThemedView style={styles.pointsItem}>
+                <ThemedText>Email Confirmed</ThemedText>
+                <ThemedText type="defaultSemiBold">+50</ThemedText>
+              </ThemedView>
+            )}
+            {userProfile.display_name && userProfile.username && (
+              <ThemedView style={styles.pointsItem}>
+                <ThemedText>Profile Completed</ThemedText>
+                <ThemedText type="defaultSemiBold">+25</ThemedText>
+              </ThemedView>
+            )}
+          </ThemedView>
+        </ThemedView>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 20,
+  scrollView: {
+    flex: 1,
   },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
+  scrollContent: {
+    padding: 16,
+    paddingTop: 8,
   },
   titleContainer: {
     marginBottom: 16,
@@ -165,21 +176,29 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 14,
   },
-  featureContainer: {
-    gap: 8,
-    marginBottom: 20,
+  pointsContainer: {
+    gap: 12,
     padding: 16,
     borderRadius: 8,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
   },
-  statusContainer: {
-    gap: 8,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+  pointsTotal: {
+    alignItems: 'center',
+    paddingVertical: 8,
   },
-  smallText: {
-    fontSize: 12,
+  pointsLabel: {
+    fontSize: 14,
     opacity: 0.7,
+  },
+  pointsList: {
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 193, 7, 0.3)',
+    paddingTop: 12,
+  },
+  pointsItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
 });

@@ -1,6 +1,6 @@
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { styles } from '@/styles/auth.styles';
 
@@ -9,30 +9,31 @@ export default function SignupScreen() {
   const { signUp, isSigningUp, error } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [username, setUsername] = useState('');
-  const [isOrganizer, setIsOrganizer] = useState(false);
-  const [organizationName, setOrganizationName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   const handleSignup = async () => {
-    if (!email || !password || !displayName || !username) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
       return;
     }
 
-    if (isOrganizer && !organizationName) {
-      Alert.alert('Error', 'Please enter your organization name');
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
 
     try {
-      await signUp(email, password, displayName, username, isOrganizer, organizationName);
-      Alert.alert('Success', 'Please check your email to verify your account');
-      if (isOrganizer) {
-        router.replace('/onboarding/organizer');
-      } else {
-        router.replace('/(tabs)');
-      }
+      await signUp(email, password);
+      // Redirect to onboarding to complete profile
+      router.replace('/onboarding/user');
     } catch {
       Alert.alert('Signup Failed', error || 'An error occurred');
     }
@@ -42,64 +43,50 @@ export default function SignupScreen() {
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
         <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Sign up to get started</Text>
 
         {error && <Text style={styles.errorText}>{error}</Text>}
 
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor="#999"
           value={email}
           onChangeText={setEmail}
           editable={!isSigningUp}
           autoCapitalize="none"
           keyboardType="email-address"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <TextInput
-          style={styles.input}
-          placeholder="Display Name"
-          value={displayName}
-          onChangeText={setDisplayName}
-          editable={!isSigningUp}
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Username"
-          value={username}
-          onChangeText={setUsername}
-          editable={!isSigningUp}
-          autoCapitalize="none"
-        />
-
-        <TextInput
+          ref={passwordRef}
           style={styles.input}
           placeholder="Password"
+          placeholderTextColor="#999"
           value={password}
           onChangeText={setPassword}
           editable={!isSigningUp}
           secureTextEntry
+          returnKeyType="next"
+          onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
-        <TouchableOpacity
-          style={[styles.toggleButton, isOrganizer && styles.toggleButtonActive]}
-          onPress={() => setIsOrganizer(!isOrganizer)}
-          disabled={isSigningUp}
-        >
-          <Text style={[styles.toggleText, isOrganizer && styles.toggleTextActive]}>
-            {isOrganizer ? '✓ ' : ''}Sign up as Organizer
-          </Text>
-        </TouchableOpacity>
-
-        {isOrganizer && (
-          <TextInput
-            style={styles.input}
-            placeholder="Organization Name"
-            value={organizationName}
-            onChangeText={setOrganizationName}
-            editable={!isSigningUp}
-          />
-        )}
+        <TextInput
+          ref={confirmPasswordRef}
+          style={styles.input}
+          placeholder="Confirm Password"
+          placeholderTextColor="#999"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          editable={!isSigningUp}
+          secureTextEntry
+          returnKeyType="go"
+          onSubmitEditing={handleSignup}
+        />
 
         <TouchableOpacity
           style={[styles.button, isSigningUp && styles.buttonDisabled]}

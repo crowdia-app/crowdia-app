@@ -1,6 +1,6 @@
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { styles } from '@/styles/auth.styles';
 
@@ -9,6 +9,8 @@ export default function LoginScreen() {
   const { login, isLoggingIn, error } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -33,20 +35,28 @@ export default function LoginScreen() {
       <TextInput
         style={styles.input}
         placeholder="Email"
+        placeholderTextColor="#999"
         value={email}
         onChangeText={setEmail}
         editable={!isLoggingIn}
         autoCapitalize="none"
         keyboardType="email-address"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        blurOnSubmit={false}
       />
 
       <TextInput
+        ref={passwordRef}
         style={styles.input}
         placeholder="Password"
+        placeholderTextColor="#999"
         value={password}
         onChangeText={setPassword}
         editable={!isLoggingIn}
         secureTextEntry
+        returnKeyType="go"
+        onSubmitEditing={handleLogin}
       />
 
       <TouchableOpacity
