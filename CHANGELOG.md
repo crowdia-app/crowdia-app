@@ -2,7 +2,12 @@
 
 All notable changes to the Crowdia app are documented in this file.
 
-## [Unreleased] - 2025-12-04
+## [0.2.1] - 2025-12-04
+
+### Added
+- Automated deployments via EAS workflows on push to main
+
+## [0.2.0] - 2025-12-04
 
 ### Added
 - Points card on home screen showing total points and breakdown of earned points
