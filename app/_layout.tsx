@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/stores/authStore';
+import { QueryProvider } from '@/lib/react-query';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -29,16 +30,18 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerShown: true }} />
-        <Stack.Screen name="onboarding/user" />
-        <Stack.Screen name="onboarding/organizer" />
-        <Stack.Screen name="auth/login" />
-        <Stack.Screen name="auth/signup" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <QueryProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerShown: true }} />
+          <Stack.Screen name="onboarding/user" />
+          <Stack.Screen name="onboarding/organizer" />
+          <Stack.Screen name="auth/login" />
+          <Stack.Screen name="auth/signup" />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </QueryProvider>
   );
 }
