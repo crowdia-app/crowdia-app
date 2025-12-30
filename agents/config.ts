@@ -19,7 +19,7 @@ export const config = {
   slackWebhook: process.env.SLACK_WEBHOOK_URL,
 
   // Agent settings
-  maxEventsPerRun: 100,
+  maxEventsPerRun: 300,
   timeWindowDays: 14,
   rateLimitMs: 2000,
   targetMetro: "Palermo",

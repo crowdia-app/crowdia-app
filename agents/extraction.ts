@@ -13,6 +13,7 @@ import {
   extractEventsFromContent,
   sendAgentReport,
   alertError,
+  closeBrowser,
   type ExtractedEvent,
   type AgentReport,
 } from "./tools";
@@ -223,6 +224,9 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
   } catch (error) {
     await alertError(error instanceof Error ? error : new Error(String(error)), "Extraction Agent");
     throw error;
+  } finally {
+    // Clean up headless browser if it was used
+    await closeBrowser();
   }
 }
 
