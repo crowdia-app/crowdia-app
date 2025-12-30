@@ -49,19 +49,31 @@ export interface Database {
       organizers: {
         Row: {
           id: string;
+          user_id: string | null;
           organization_name: string;
           logo_url: string | null;
           address: string | null;
+          website_url: string | null;
+          instagram_handle: string | null;
+          phone: string | null;
+          email: string | null;
+          event_sources: Record<string, string>;
           is_verified: boolean;
           verified_at: string | null;
           verified_by: string | null;
           created_at: string;
         };
         Insert: {
-          id: string;
+          id?: string;
+          user_id?: string | null;
           organization_name: string;
           logo_url?: string | null;
           address?: string | null;
+          website_url?: string | null;
+          instagram_handle?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          event_sources?: Record<string, string>;
           is_verified?: boolean;
           verified_at?: string | null;
           verified_by?: string | null;
@@ -69,13 +81,69 @@ export interface Database {
         };
         Update: {
           id?: string;
+          user_id?: string | null;
           organization_name?: string;
           logo_url?: string | null;
           address?: string | null;
+          website_url?: string | null;
+          instagram_handle?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          event_sources?: Record<string, string>;
           is_verified?: boolean;
           verified_at?: string | null;
           verified_by?: string | null;
           created_at?: string;
+        };
+      };
+      event_aggregators: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          base_url: string;
+          events_url: string | null;
+          description: string | null;
+          logo_url: string | null;
+          scrape_priority: number;
+          is_active: boolean;
+          last_scraped_at: string | null;
+          scrape_config: Record<string, unknown>;
+          metro_area: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          base_url: string;
+          events_url?: string | null;
+          description?: string | null;
+          logo_url?: string | null;
+          scrape_priority?: number;
+          is_active?: boolean;
+          last_scraped_at?: string | null;
+          scrape_config?: Record<string, unknown>;
+          metro_area?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          base_url?: string;
+          events_url?: string | null;
+          description?: string | null;
+          logo_url?: string | null;
+          scrape_priority?: number;
+          is_active?: boolean;
+          last_scraped_at?: string | null;
+          scrape_config?: Record<string, unknown>;
+          metro_area?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
       };
       categories: {
@@ -111,6 +179,10 @@ export interface Database {
           address: string;
           lat: number;
           lng: number;
+          website_url: string | null;
+          venue_type: string | null;
+          seasonality: string | null;
+          event_sources: Record<string, string>;
           created_at: string;
           updated_at: string;
         };
@@ -120,6 +192,10 @@ export interface Database {
           address: string;
           lat: number;
           lng: number;
+          website_url?: string | null;
+          venue_type?: string | null;
+          seasonality?: string | null;
+          event_sources?: Record<string, string>;
           created_at?: string;
           updated_at?: string;
         };
@@ -129,6 +205,10 @@ export interface Database {
           address?: string;
           lat?: number;
           lng?: number;
+          website_url?: string | null;
+          venue_type?: string | null;
+          seasonality?: string | null;
+          event_sources?: Record<string, string>;
           created_at?: string;
           updated_at?: string;
         };
@@ -165,6 +245,11 @@ export interface Database {
           event_start_time: string;
           event_end_time: string;
           external_ticket_url: string | null;
+          event_url: string | null;
+          source: string | null;
+          is_published: boolean;
+          confidence_score: number | null;
+          source_metadata: Record<string, unknown> | null;
           is_featured: boolean;
           created_at: string;
           updated_at: string;
@@ -180,6 +265,11 @@ export interface Database {
           event_start_time: string;
           event_end_time: string;
           external_ticket_url?: string | null;
+          event_url?: string | null;
+          source?: string | null;
+          is_published?: boolean;
+          confidence_score?: number | null;
+          source_metadata?: Record<string, unknown> | null;
           is_featured?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -195,6 +285,11 @@ export interface Database {
           event_start_time?: string;
           event_end_time?: string;
           external_ticket_url?: string | null;
+          event_url?: string | null;
+          source?: string | null;
+          is_published?: boolean;
+          confidence_score?: number | null;
+          source_metadata?: Record<string, unknown> | null;
           is_featured?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -330,9 +425,14 @@ export interface Database {
           location_address: string;
           location_lat: number;
           location_lng: number;
+          location_venue_type: string | null;
           event_start_time: string;
           event_end_time: string;
           external_ticket_url: string | null;
+          event_url: string | null;
+          source: string | null;
+          is_published: boolean;
+          confidence_score: number | null;
           is_featured: boolean;
           created_at: string;
           updated_at: string;
@@ -357,6 +457,7 @@ export type Category = Database['public']['Tables']['categories']['Row'];
 export type Location = Database['public']['Tables']['locations']['Row'];
 export type OrganizerLocation = Database['public']['Tables']['organizer_locations']['Row'];
 export type Event = Database['public']['Tables']['events']['Row'];
+export type EventAggregator = Database['public']['Tables']['event_aggregators']['Row'];
 export type EventWithStats = Database['public']['Views']['events_with_stats']['Row'];
 export type EventInterest = Database['public']['Tables']['event_interests']['Row'];
 export type EventCheckIn = Database['public']['Tables']['event_check_ins']['Row'];
@@ -372,6 +473,7 @@ export type OrganizerLocationInsert = Database['public']['Tables']['organizer_lo
 export type EventInsert = Database['public']['Tables']['events']['Insert'];
 export type EventInterestInsert = Database['public']['Tables']['event_interests']['Insert'];
 export type EventCheckInInsert = Database['public']['Tables']['event_check_ins']['Insert'];
+export type EventAggregatorInsert = Database['public']['Tables']['event_aggregators']['Insert'];
 
 // Update types
 export type UserUpdate = Database['public']['Tables']['users']['Update'];

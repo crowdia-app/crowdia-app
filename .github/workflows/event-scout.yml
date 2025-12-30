@@ -1,0 +1,76 @@
+name: Event Scout Agents
+
+on:
+  # Extraction: Run twice daily at 8am and 8pm UTC
+  schedule:
+    - cron: "0 8,20 * * *"
+    # Discovery: Run weekly on Mondays at 6am UTC
+    - cron: "0 6 * * 1"
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Which agent to run"
+        required: true
+        default: "extraction"
+        type: choice
+        options:
+          - extraction
+          - discovery
+          - both
+      dry_run:
+        description: "Dry run (no changes)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  run-agent:
+    name: Run Event Scout
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine agent type
+        id: agent
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Check which cron triggered
+            if [ "${{ github.event.schedule }}" = "0 6 * * 1" ]; then
+              echo "type=discovery" >> $GITHUB_OUTPUT
+            else
+              echo "type=extraction" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "type=${{ github.event.inputs.agent || 'extraction' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Event Scout Agent
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          ARGS="--${{ steps.agent.outputs.type }}"
+
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+
+          npm run agents -- $ARGS
