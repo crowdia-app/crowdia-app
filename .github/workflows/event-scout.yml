@@ -1,9 +1,9 @@
 name: Event Scout Agents
 
 on:
-  # Extraction: Run twice daily at 8am and 8pm UTC
+  # Extraction: Run daily at 10am Rome time (9am UTC)
   schedule:
-    - cron: "0 8,20 * * *"
+    - cron: "0 9 * * *"
     # Discovery: Run weekly on Mondays at 6am UTC
     - cron: "0 6 * * 1"
 
@@ -49,8 +49,10 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
             # Check which cron triggered
+            # Discovery runs on Mondays at 6am UTC
             if [ "${{ github.event.schedule }}" = "0 6 * * 1" ]; then
               echo "type=discovery" >> $GITHUB_OUTPUT
+            # Extraction runs daily at 9am UTC (10am Rome)
             else
               echo "type=extraction" >> $GITHUB_OUTPUT
             fi
