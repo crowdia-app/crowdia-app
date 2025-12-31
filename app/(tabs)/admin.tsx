@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
+  Clipboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -152,6 +154,74 @@ export default function AdminDashboard() {
             <IconSymbol name="chevron.right" size={20} color={colors.subtext} />
           </TouchableOpacity>
         )}
+      </View>
+
+      {/* Run Agents */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Run Agents Manually</Text>
+        <Text style={[styles.helpText, { color: colors.subtext }]}>
+          Agents run automatically via cron, but you can also trigger them manually via CLI:
+        </Text>
+
+        <View style={[styles.commandCard, { backgroundColor: colors.card }]}>
+          <View style={styles.commandHeader}>
+            <IconSymbol name="wand.and.stars" size={20} color={Colors.magenta[500]} />
+            <Text style={[styles.commandTitle, { color: colors.text }]}>Extraction Agent</Text>
+          </View>
+          <View style={[styles.commandBox, { backgroundColor: colors.background }]}>
+            <Text style={[styles.commandText, { color: colors.text }]}>npm run agents:extract</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.copyButton}
+            onPress={() => {
+              Clipboard.setString('npm run agents:extract');
+              Alert.alert('Copied!', 'Command copied to clipboard');
+            }}
+          >
+            <IconSymbol name="doc.on.doc" size={16} color={Colors.magenta[500]} />
+            <Text style={[styles.copyButtonText, { color: Colors.magenta[500] }]}>Copy Command</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.commandCard, { backgroundColor: colors.card }]}>
+          <View style={styles.commandHeader}>
+            <IconSymbol name="magnifyingglass.circle.fill" size={20} color={Colors.magenta[500]} />
+            <Text style={[styles.commandTitle, { color: colors.text }]}>Discovery Agent</Text>
+          </View>
+          <View style={[styles.commandBox, { backgroundColor: colors.background }]}>
+            <Text style={[styles.commandText, { color: colors.text }]}>npm run agents:discover</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.copyButton}
+            onPress={() => {
+              Clipboard.setString('npm run agents:discover');
+              Alert.alert('Copied!', 'Command copied to clipboard');
+            }}
+          >
+            <IconSymbol name="doc.on.doc" size={16} color={Colors.magenta[500]} />
+            <Text style={[styles.copyButtonText, { color: Colors.magenta[500] }]}>Copy Command</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.commandCard, { backgroundColor: colors.card }]}>
+          <View style={styles.commandHeader}>
+            <IconSymbol name="bolt.fill" size={20} color={Colors.magenta[500]} />
+            <Text style={[styles.commandTitle, { color: colors.text }]}>Run Both Agents</Text>
+          </View>
+          <View style={[styles.commandBox, { backgroundColor: colors.background }]}>
+            <Text style={[styles.commandText, { color: colors.text }]}>npm run agents:both</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.copyButton}
+            onPress={() => {
+              Clipboard.setString('npm run agents:both');
+              Alert.alert('Copied!', 'Command copied to clipboard');
+            }}
+          >
+            <IconSymbol name="doc.on.doc" size={16} color={Colors.magenta[500]} />
+            <Text style={[styles.copyButtonText, { color: Colors.magenta[500] }]}>Copy Command</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Recent Agent Activity */}
@@ -366,6 +436,45 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: Typography.md,
+    fontWeight: '600',
+  },
+  helpText: {
+    fontSize: Typography.sm,
+    marginBottom: Spacing.md,
+    lineHeight: 20,
+  },
+  commandCard: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  commandHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  commandTitle: {
+    fontSize: Typography.md,
+    fontWeight: '600',
+  },
+  commandBox: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  commandText: {
+    fontSize: Typography.sm,
+    fontFamily: 'monospace',
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  copyButtonText: {
+    fontSize: Typography.sm,
     fontWeight: '600',
   },
 });
