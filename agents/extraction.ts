@@ -20,6 +20,7 @@ import {
   type AgentReport,
 } from "./tools";
 import type { EventInsert } from "../types/database";
+import { AgentLogger } from "./logger";
 
 interface ExtractionStats {
   sourcesProcessed: number;
@@ -181,6 +182,7 @@ function isListingPageUrl(url: string): boolean {
 export async function runExtractionAgent(): Promise<ExtractionStats> {
   const startTime = Date.now();
   const errors: string[] = [];
+  const logger = new AgentLogger('extraction');
 
   const stats: ExtractionStats = {
     sourcesProcessed: 0,
@@ -198,16 +200,20 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
   };
 
   try {
-    console.log("Starting Extraction Agent...");
-    console.log(`Target metro: ${config.targetMetro}`);
-    console.log(`Max events per run: ${config.maxEventsPerRun}`);
+    // Start the agent run in the database
+    await logger.startRun();
+
+    await logger.info("Starting Extraction Agent...");
+    await logger.info(`Target metro: ${config.targetMetro}`);
+    await logger.info(`Max events per run: ${config.maxEventsPerRun}`);
 
     // Get event sources from database
     const sources = await getEventSources();
-    console.log(`Found ${sources.length} event sources`);
+    await logger.info(`Found ${sources.length} event sources`);
 
     if (sources.length === 0) {
-      console.log("No event sources configured. Add aggregators, locations, or organizers with event URLs.");
+      await logger.warn("No event sources configured. Add aggregators, locations, or organizers with event URLs.");
+      await logger.completeRun('completed', stats, 'No event sources configured');
       return stats;
     }
 
@@ -217,21 +223,20 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
 
     for (const source of sources) {
       if (stats.eventsFound >= config.maxEventsPerRun) {
-        console.log(`Reached max events limit (${config.maxEventsPerRun})`);
+        await logger.info(`Reached max events limit (${config.maxEventsPerRun})`);
         break;
       }
 
       try {
-        console.log(`\nProcessing source: ${source.name} (${source.type})`);
-        console.log(`URL: ${source.url}`);
+        await logger.info(`Processing source: ${source.name} (${source.type})`, { source_name: source.name, source_type: source.type, url: source.url });
 
         // Fetch page content
         const content = await fetchPageWithFallback(source.url);
-        console.log(`Fetched ${content.length} chars`);
+        await logger.debug(`Fetched ${content.length} chars from ${source.name}`);
 
         // Extract events using LLM
         const events = await extractEventsFromContent(content, source.name, source.url);
-        console.log(`Extracted ${events.length} events from ${source.name}`);
+        await logger.info(`Extracted ${events.length} events from ${source.name}`);
 
         // Log extraction details for debugging
         for (const event of events) {
@@ -269,12 +274,12 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
         await sleep(config.rateLimitMs);
       } catch (error) {
         const errorMsg = `Failed to process ${source.name}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(errorMsg);
+        await logger.error(errorMsg);
         errors.push(errorMsg);
       }
     }
 
-    console.log(`\nTotal events collected: ${allEvents.length}`);
+    await logger.info(`Total events collected: ${allEvents.length}`);
 
     // Process collected events
     for (const { extracted, source } of allEvents) {
@@ -424,18 +429,30 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
 
     await sendAgentReport(report);
 
-    console.log("\n--- Extraction Complete ---");
-    console.log(`Sources processed: ${stats.sourcesProcessed}`);
-    console.log(`Events found: ${stats.eventsFound}`);
-    console.log(`Events created: ${stats.eventsCreated}`);
-    console.log(`Events updated: ${stats.eventsUpdated}`);
-    console.log(`Duplicates: ${totalDuplicates} (${stats.eventsDuplicateInRun} in-run, ${stats.eventsDuplicateExact} exact, ${stats.eventsDuplicateFuzzy} fuzzy)`);
-    console.log(`Past events skipped: ${stats.eventsSkippedPast}`);
-    console.log(`Listing URL skipped: ${stats.eventsSkippedListingUrl}`);
-    console.log(`Failed: ${stats.eventsFailed}`);
+    // Complete the agent run in the database
+    const summary = `Processed ${stats.sourcesProcessed} sources, created ${stats.eventsCreated} events, updated ${stats.eventsUpdated} events`;
+    await logger.completeRun(
+      errors.length === 0 ? 'completed' : 'failed',
+      stats,
+      summary,
+      errors.length > 0 ? errors.join('; ') : undefined
+    );
+
+    await logger.success("--- Extraction Complete ---");
+    await logger.info(`Sources processed: ${stats.sourcesProcessed}`);
+    await logger.info(`Events found: ${stats.eventsFound}`);
+    await logger.info(`Events created: ${stats.eventsCreated}`);
+    await logger.info(`Events updated: ${stats.eventsUpdated}`);
+    await logger.info(`Duplicates: ${totalDuplicates} (${stats.eventsDuplicateInRun} in-run, ${stats.eventsDuplicateExact} exact, ${stats.eventsDuplicateFuzzy} fuzzy)`);
+    await logger.info(`Past events skipped: ${stats.eventsSkippedPast}`);
+    await logger.info(`Listing URL skipped: ${stats.eventsSkippedListingUrl}`);
+    await logger.info(`Failed: ${stats.eventsFailed}`);
 
     return stats;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await logger.error(`Fatal error in extraction agent: ${errorMessage}`);
+    await logger.completeRun('failed', stats, 'Agent failed with fatal error', errorMessage);
     await alertError(error instanceof Error ? error : new Error(String(error)), "Extraction Agent");
     throw error;
   } finally {

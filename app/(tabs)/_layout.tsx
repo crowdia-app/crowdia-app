@@ -5,9 +5,12 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { userProfile } = useAuthStore();
+  const isAdmin = userProfile?.is_admin || false;
 
   return (
     <Tabs
@@ -30,6 +33,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
         }}
       />
+      {isAdmin && (
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: 'Admin',
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+          }}
+        />
+      )}
     </Tabs>
   );
 }

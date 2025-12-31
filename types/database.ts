@@ -18,6 +18,7 @@ export interface Database {
           points: number;
           check_ins_count: number;
           email_confirmed_points_awarded: boolean;
+          is_admin: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -30,6 +31,7 @@ export interface Database {
           points?: number;
           check_ins_count?: number;
           email_confirmed_points_awarded?: boolean;
+          is_admin?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -42,6 +44,7 @@ export interface Database {
           points?: number;
           check_ins_count?: number;
           email_confirmed_points_awarded?: boolean;
+          is_admin?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -410,6 +413,76 @@ export interface Database {
           invited_at?: string | null;
         };
       };
+      agent_runs: {
+        Row: {
+          id: string;
+          agent_type: 'extraction' | 'discovery';
+          status: 'running' | 'completed' | 'failed';
+          started_at: string;
+          completed_at: string | null;
+          duration_seconds: number | null;
+          stats: Record<string, unknown>;
+          summary: string | null;
+          error_message: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          agent_type: 'extraction' | 'discovery';
+          status: 'running' | 'completed' | 'failed';
+          started_at?: string;
+          completed_at?: string | null;
+          duration_seconds?: number | null;
+          stats?: Record<string, unknown>;
+          summary?: string | null;
+          error_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          agent_type?: 'extraction' | 'discovery';
+          status?: 'running' | 'completed' | 'failed';
+          started_at?: string;
+          completed_at?: string | null;
+          duration_seconds?: number | null;
+          stats?: Record<string, unknown>;
+          summary?: string | null;
+          error_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      agent_logs: {
+        Row: {
+          id: string;
+          agent_run_id: string;
+          timestamp: string;
+          level: 'info' | 'warn' | 'error' | 'debug' | 'success';
+          message: string;
+          metadata: Record<string, unknown> | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          agent_run_id: string;
+          timestamp?: string;
+          level: 'info' | 'warn' | 'error' | 'debug' | 'success';
+          message: string;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          agent_run_id?: string;
+          timestamp?: string;
+          level?: 'info' | 'warn' | 'error' | 'debug' | 'success';
+          message?: string;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       events_with_stats: {
@@ -464,6 +537,8 @@ export type EventCheckIn = Database['public']['Tables']['event_check_ins']['Row'
 export type Badge = Database['public']['Tables']['badges']['Row'];
 export type UserBadge = Database['public']['Tables']['user_badges']['Row'];
 export type WaitingListEntry = Database['public']['Tables']['waiting_list']['Row'];
+export type AgentRun = Database['public']['Tables']['agent_runs']['Row'];
+export type AgentLog = Database['public']['Tables']['agent_logs']['Row'];
 
 // Insert types
 export type UserInsert = Database['public']['Tables']['users']['Insert'];
@@ -474,12 +549,15 @@ export type EventInsert = Database['public']['Tables']['events']['Insert'];
 export type EventInterestInsert = Database['public']['Tables']['event_interests']['Insert'];
 export type EventCheckInInsert = Database['public']['Tables']['event_check_ins']['Insert'];
 export type EventAggregatorInsert = Database['public']['Tables']['event_aggregators']['Insert'];
+export type AgentRunInsert = Database['public']['Tables']['agent_runs']['Insert'];
+export type AgentLogInsert = Database['public']['Tables']['agent_logs']['Insert'];
 
 // Update types
 export type UserUpdate = Database['public']['Tables']['users']['Update'];
 export type OrganizerUpdate = Database['public']['Tables']['organizers']['Update'];
 export type LocationUpdate = Database['public']['Tables']['locations']['Update'];
 export type EventUpdate = Database['public']['Tables']['events']['Update'];
+export type AgentRunUpdate = Database['public']['Tables']['agent_runs']['Update'];
 
 // Composite types for API responses
 export type EventWithOrganizerAndCategory = EventWithStats & {
@@ -497,4 +575,8 @@ export type OrganizerWithLocations = Organizer & {
 export type UserProfile = User & {
   badges: (UserBadge & { badge: Badge })[];
   organizer?: Organizer | null;
+};
+
+export type AgentRunWithLogs = AgentRun & {
+  logs: AgentLog[];
 };

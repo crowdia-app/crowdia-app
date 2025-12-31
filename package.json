@@ -12,7 +12,8 @@
     "agents": "tsx agents/index.ts",
     "agents:extract": "tsx agents/index.ts --extraction",
     "agents:discover": "tsx agents/index.ts --discovery",
-    "agents:both": "tsx agents/index.ts --both"
+    "agents:both": "tsx agents/index.ts --both",
+    "make-admin": "tsx scripts/make-admin.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

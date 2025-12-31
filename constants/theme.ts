@@ -33,11 +33,71 @@ export const Charcoal = {
   900: '#000000',
 };
 
+// Status Colors
+export const Green = {
+  50: '#E6F7ED',
+  100: '#B8E6C9',
+  200: '#8AD5A5',
+  300: '#5CC481',
+  400: '#2EB35D',
+  500: '#00A239',
+  600: '#00822E',
+  700: '#006123',
+  800: '#004118',
+  900: '#00200C',
+};
+
+export const Red = {
+  50: '#FFE5E5',
+  100: '#FFB8B8',
+  200: '#FF8A8A',
+  300: '#FF5C5C',
+  400: '#FF2E2E',
+  500: '#FF0000',
+  600: '#CC0000',
+  700: '#990000',
+  800: '#660000',
+  900: '#330000',
+};
+
+export const Yellow = {
+  50: '#FFF9E5',
+  100: '#FFECB8',
+  200: '#FFDF8A',
+  300: '#FFD25C',
+  400: '#FFC52E',
+  500: '#FFB800',
+  600: '#CC9300',
+  700: '#996E00',
+  800: '#664A00',
+  900: '#332500',
+};
+
+export const Blue = {
+  50: '#E5F3FF',
+  100: '#B8DEFF',
+  200: '#8AC9FF',
+  300: '#5CB4FF',
+  400: '#2E9FFF',
+  500: '#008AFF',
+  600: '#006ECC',
+  700: '#005399',
+  800: '#003766',
+  900: '#001C33',
+};
+
 export const Colors = {
+  magenta: Magenta,
+  charcoal: Charcoal,
+  green: Green,
+  red: Red,
+  yellow: Yellow,
+  blue: Blue,
   light: {
     text: '#11181C',
     textSecondary: '#687076',
     textMuted: '#9BA1A6',
+    subtext: '#687076',
     background: '#FFFFFF',
     backgroundSecondary: '#F8F8F8',
     card: '#FFFFFF',
@@ -59,6 +119,7 @@ export const Colors = {
     text: '#ECEDEE',
     textSecondary: '#9BA1A6',
     textMuted: '#686868',
+    subtext: '#9BA1A6',
     background: Charcoal[900],
     backgroundSecondary: Charcoal[800],
     card: Charcoal[700],
@@ -80,6 +141,7 @@ export const Colors = {
 
 // Spacing scale
 export const Spacing = {
+  xxs: 2,
   xs: 4,
   sm: 8,
   md: 12,
@@ -91,6 +153,7 @@ export const Spacing = {
 
 // Border radius scale
 export const BorderRadius = {
+  xs: 2,
   sm: 4,
   md: 8,
   lg: 12,
@@ -100,8 +163,10 @@ export const BorderRadius = {
 
 // Typography sizes
 export const Typography = {
+  xxs: 10,
   xs: 12,
   sm: 14,
+  md: 16,
   base: 16,
   lg: 18,
   xl: 20,

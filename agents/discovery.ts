@@ -7,6 +7,7 @@ import {
   type SearchResult,
   type AgentReport,
 } from "./tools";
+import { AgentLogger } from "./logger";
 
 interface DiscoveryStats {
   searchesPerformed: number;
@@ -43,6 +44,7 @@ const EVENT_PAGE_PATTERNS = [
 export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
   const startTime = Date.now();
   const errors: string[] = [];
+  const logger = new AgentLogger('discovery');
 
   const stats: DiscoveryStats = {
     searchesPerformed: 0,
@@ -52,15 +54,18 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
   };
 
   try {
-    console.log("Starting Discovery Agent...");
-    console.log(`Target metro: ${config.targetMetro}`);
+    // Start the agent run in the database
+    await logger.startRun();
+
+    await logger.info("Starting Discovery Agent...");
+    await logger.info(`Target metro: ${config.targetMetro}`);
 
     // Search for event sources
     const searchResults = await searchEventSources(config.targetMetro);
     stats.searchesPerformed = 5; // We run 5 different queries
     stats.resultsFound = searchResults.length;
 
-    console.log(`Found ${searchResults.length} search results`);
+    await logger.info(`Found ${searchResults.length} search results`);
 
     // Get existing aggregator URLs
     const { data: existingAggregators } = await getSupabase()
@@ -109,18 +114,18 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
               // Unique constraint violation
               stats.duplicatesSkipped++;
             } else {
-              console.error(`Failed to add aggregator: ${error.message}`);
+              await logger.error(`Failed to add aggregator: ${error.message}`);
               errors.push(`Failed to add ${result.url}: ${error.message}`);
             }
           } else {
-            console.log(`Added new source: ${result.url}`);
+            await logger.success(`Added new source: ${result.url}`);
             existingUrls.add(normalizedUrl);
             stats.newSourcesAdded++;
           }
         }
       } catch (error) {
         const errorMsg = `Error processing ${result.url}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(errorMsg);
+        await logger.error(errorMsg);
         errors.push(errorMsg);
       }
     }
@@ -142,13 +147,25 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
 
     await sendAgentReport(report);
 
-    console.log("\n--- Discovery Complete ---");
-    console.log(`Results found: ${stats.resultsFound}`);
-    console.log(`New sources added: ${stats.newSourcesAdded}`);
-    console.log(`Duplicates skipped: ${stats.duplicatesSkipped}`);
+    // Complete the agent run in the database
+    const summary = `Found ${stats.resultsFound} results, added ${stats.newSourcesAdded} new sources`;
+    await logger.completeRun(
+      errors.length === 0 ? 'completed' : 'failed',
+      stats,
+      summary,
+      errors.length > 0 ? errors.join('; ') : undefined
+    );
+
+    await logger.success("--- Discovery Complete ---");
+    await logger.info(`Results found: ${stats.resultsFound}`);
+    await logger.info(`New sources added: ${stats.newSourcesAdded}`);
+    await logger.info(`Duplicates skipped: ${stats.duplicatesSkipped}`);
 
     return stats;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await logger.error(`Fatal error in discovery agent: ${errorMessage}`);
+    await logger.completeRun('failed', stats, 'Agent failed with fatal error', errorMessage);
     await alertError(error instanceof Error ? error : new Error(String(error)), "Discovery Agent");
     throw error;
   }
