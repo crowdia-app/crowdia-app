@@ -18,7 +18,7 @@ import {
   type SortOption,
   type TimeFilter,
 } from '@/components/events';
-import { GlowingLogo } from '@/components/ui/GlowingLogo';
+import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { fetchEvents } from '@/services/events';
 import { Colors, Spacing, Typography, Magenta } from '@/constants/theme';
 import { EventWithStats } from '@/types/database';

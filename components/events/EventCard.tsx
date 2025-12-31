@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
-import { StaticGlowLogo } from '@/components/ui/GlowingLogo';
+import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 
 interface EventCardProps {

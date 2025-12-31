@@ -21,7 +21,7 @@ import * as Haptics from 'expo-haptics';
 
 import { fetchEventById } from '@/services/events';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
-import { StaticGlowLogo } from '@/components/ui/GlowingLogo';
+import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { MapSection } from '@/components/maps/MapSection';
 
