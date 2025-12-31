@@ -129,7 +129,15 @@ ${JSON.stringify(eventSchema, null, 2)}`,
     const parsed = JSON.parse(jsonStr);
     return parsed.events || [];
   } catch (error) {
+    // Check for rate limit errors
+    if (error instanceof Error && error.message.includes('429')) {
+      const rateLimitError = new Error(`Rate limit exceeded on OpenRouter. Consider adding credits to your account.`);
+      (rateLimitError as any).isRateLimitError = true;
+      (rateLimitError as any).originalError = error;
+      console.error("LLM extraction failed:", error);
+      throw rateLimitError;
+    }
     console.error("LLM extraction failed:", error);
-    return [];
+    throw error;
   }
 }

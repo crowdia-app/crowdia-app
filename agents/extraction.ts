@@ -35,6 +35,7 @@ interface ExtractionStats {
   eventsFailed: number;
   locationsCreated: number;
   organizersCreated: number;
+  rateLimitErrors: number;
 }
 
 interface ProcessedEvent {
@@ -197,6 +198,7 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
     eventsFailed: 0,
     locationsCreated: 0,
     organizersCreated: 0,
+    rateLimitErrors: 0,
   };
 
   try {
@@ -276,6 +278,12 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
         const errorMsg = `Failed to process ${source.name}: ${error instanceof Error ? error.message : String(error)}`;
         await logger.error(errorMsg);
         errors.push(errorMsg);
+
+        // Track rate limit errors specifically
+        if ((error as any)?.isRateLimitError || (error instanceof Error && error.message.includes('Rate limit'))) {
+          stats.rateLimitErrors++;
+          await logger.warn(`Rate limit hit while processing ${source.name}. Consider adding OpenRouter credits.`);
+        }
       }
     }
 
@@ -421,6 +429,7 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
         "Past Events Skipped": stats.eventsSkippedPast,
         "Listing URL Skipped": stats.eventsSkippedListingUrl,
         "Events Failed": stats.eventsFailed,
+        "Rate Limit Errors": stats.rateLimitErrors,
         "Locations Created": stats.locationsCreated,
         "Organizers Created": stats.organizersCreated,
       },
