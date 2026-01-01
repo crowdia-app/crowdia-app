@@ -60,11 +60,13 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Retry helper with exponential backoff
+ * Retries on rate limit errors with delays: 4s, 8s, 16s, 32s
+ * This matches OpenRouter's 20 req/min limit (1 req every 3 seconds)
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 4,
-  initialDelayMs: number = 2000
+  initialDelayMs: number = 4000
 ): Promise<T> {
   let lastError: Error | undefined;
 
@@ -85,7 +87,7 @@ async function retryWithBackoff<T>(
         throw lastError;
       }
 
-      // Calculate delay with exponential backoff: 2s, 4s, 8s, 16s
+      // Calculate delay with exponential backoff: 4s, 8s, 16s, 32s
       const delayMs = initialDelayMs * Math.pow(2, attempt);
       console.log(`Rate limit hit (attempt ${attempt + 1}/${maxRetries + 1}). Retrying in ${delayMs}ms...`);
       await sleep(delayMs);

@@ -21,7 +21,7 @@ export const config = {
   // Agent settings
   maxEventsPerRun: 300,
   timeWindowDays: 14,
-  rateLimitMs: 3000, // Increased from 2000ms to 3000ms to reduce rate limit errors
+  rateLimitMs: 4000, // 4 seconds = 15 req/min, safely under OpenRouter's 20 req/min limit
   targetMetro: "Palermo",
 };
 
