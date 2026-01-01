@@ -16,5 +16,5 @@ jobs:
     needs: [deploy_web]
     type: slack
     params:
-      webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      webhook_url: ${{ env.SLACK_WEBHOOK_URL }}
       message: "Web deploy completed for Crowdia"
