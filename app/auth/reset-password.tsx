@@ -25,18 +25,31 @@ export default function ResetPasswordScreen() {
     // Check for recovery token in URL hash (web) or params (deep link)
     const checkRecoveryToken = async () => {
       try {
-        // On web, Supabase automatically handles the hash fragment
-        // We just need to check if there's a valid session with recovery type
+        // On web, we need to manually parse the hash fragment since detectSessionInUrl is false
         if (Platform.OS === 'web') {
           // Parse hash fragment from URL
           const hash = window.location.hash;
           if (hash && hash.includes('type=recovery')) {
-            // Supabase client should automatically pick up the token
-            const { data: { session }, error } = await supabase.auth.getSession();
-            if (session && !error) {
-              setIsValidToken(true);
+            // Manually parse the tokens from the hash fragment
+            const hashParams = new URLSearchParams(hash.substring(1));
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
+            const type = hashParams.get('type');
+
+            if (type === 'recovery' && accessToken && refreshToken) {
+              // Set the session manually since detectSessionInUrl is false
+              const { error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+              if (!error) {
+                setIsValidToken(true);
+              } else {
+                console.error('Session error:', error);
+                setError('Invalid or expired reset link. Please request a new one.');
+              }
             } else {
-              setError('Invalid or expired reset link. Please request a new one.');
+              setError('Invalid recovery token in URL.');
             }
           } else {
             setError('No recovery token found. Please use the link from your email.');
