@@ -22,66 +22,65 @@ export default function ResetPasswordScreen() {
   const confirmPasswordRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    // Check for recovery token in URL hash (web) or params (deep link)
-    const checkRecoveryToken = async () => {
-      try {
-        // On web, we need to manually parse the hash fragment since detectSessionInUrl is false
-        if (Platform.OS === 'web') {
-          // Parse hash fragment from URL
-          const hash = window.location.hash;
-          if (hash && hash.includes('type=recovery')) {
-            // Manually parse the tokens from the hash fragment
-            const hashParams = new URLSearchParams(hash.substring(1));
-            const accessToken = hashParams.get('access_token');
-            const refreshToken = hashParams.get('refresh_token');
-            const type = hashParams.get('type');
+    // With PKCE flow, Supabase automatically handles the code exchange
+    // We listen for auth state changes to detect when the session is established
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the recovery link and session was established
+        setIsValidToken(true);
+        setIsCheckingToken(false);
+      } else if (event === 'SIGNED_IN' && session) {
+        // Fallback: check if this is a recovery session
+        setIsValidToken(true);
+        setIsCheckingToken(false);
+      }
+    });
 
-            if (type === 'recovery' && accessToken && refreshToken) {
-              // Set the session manually since detectSessionInUrl is false
-              const { error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-              if (!error) {
-                setIsValidToken(true);
-              } else {
-                console.error('Session error:', error);
-                setError('Invalid or expired reset link. Please request a new one.');
-              }
-            } else {
-              setError('Invalid recovery token in URL.');
-            }
-          } else {
+    // Also check for existing session (in case auth state change already fired)
+    const checkExistingSession = async () => {
+      // Give Supabase time to process the URL and exchange the code
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setIsValidToken(true);
+      } else {
+        // Check if there's a code in the URL that failed to exchange
+        if (Platform.OS === 'web') {
+          const urlParams = new URLSearchParams(window.location.search);
+          const code = urlParams.get('code');
+          const errorParam = urlParams.get('error');
+          const errorDescription = urlParams.get('error_description');
+
+          if (errorParam) {
+            setError(errorDescription || 'Invalid or expired reset link. Please request a new one.');
+          } else if (!code && !window.location.hash.includes('access_token')) {
             setError('No recovery token found. Please use the link from your email.');
+          } else if (code) {
+            // Code exists but wasn't exchanged - might be invalid
+            setError('Invalid or expired reset link. Please request a new one.');
           }
         } else {
           // For native apps, check params
-          const accessToken = params.access_token as string;
-          const refreshToken = params.refresh_token as string;
-          const type = params.type as string;
+          const code = params.code as string;
+          const errorParam = params.error as string;
+          const errorDescription = params.error_description as string;
 
-          if (type === 'recovery' && accessToken && refreshToken) {
-            const { error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (!error) {
-              setIsValidToken(true);
-            } else {
-              setError('Invalid or expired reset link. Please request a new one.');
-            }
-          } else {
+          if (errorParam) {
+            setError(errorDescription || 'Invalid or expired reset link. Please request a new one.');
+          } else if (!code) {
             setError('No recovery token found. Please use the link from your email.');
           }
         }
-      } catch {
-        setError('Failed to verify reset link. Please try again.');
-      } finally {
-        setIsCheckingToken(false);
       }
+      setIsCheckingToken(false);
     };
 
-    checkRecoveryToken();
+    checkExistingSession();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [params]);
 
   const handleResetPassword = async () => {
