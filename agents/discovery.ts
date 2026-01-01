@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { getSupabase } from "./db";
+import { getSupabase, cleanupStuckRuns } from "./db";
 import {
   searchEventSources,
   sendAgentReport,
@@ -54,6 +54,12 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
   };
 
   try {
+    // Clean up any stuck runs from previous executions
+    const cleanedUp = await cleanupStuckRuns();
+    if (cleanedUp > 0) {
+      console.log(`Cleaned up ${cleanedUp} stuck agent runs`);
+    }
+
     // Start the agent run in the database
     await logger.startRun();
 

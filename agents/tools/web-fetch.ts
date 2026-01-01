@@ -31,7 +31,8 @@ const headlessDomains = new Set([
 ]);
 
 // Domains with Cloudflare protection that may need FlareSolverr
-const cloudflareDomains = new Set(["ra.co", "dice.fm"]);
+// Note: ra.co is handled separately via GraphQL API
+const cloudflareDomains = new Set(["dice.fm"]);
 
 // Selectors to wait for on specific domains
 const domainSelectors: Record<string, string> = {
@@ -138,18 +139,15 @@ async function checkFlareSolverr(): Promise<boolean> {
 export async function fetchPageWithFallback(url: string): Promise<string> {
   const domain = getDomain(url);
 
-  // Special handling for RA.co - use GraphQL API to bypass Cloudflare
+  // Special handling for RA.co - use GraphQL API exclusively (bypass Cloudflare)
+  // Don't fall back to other methods as they will all fail with 403
   if (isRAUrl(url)) {
-    console.log("Using RA.co GraphQL API");
-    try {
-      const content = await fetchRAEvents();
-      if (content && content.length > 100) {
-        return content;
-      }
-    } catch (error) {
-      console.warn(`RA.co GraphQL failed: ${error}`);
-      // Fall through to other methods
+    console.log("Using RA.co GraphQL API (exclusive - no fallback)");
+    const content = await fetchRAEvents();
+    if (content && content.length > 100) {
+      return content;
     }
+    throw new Error("RA.co GraphQL returned insufficient content");
   }
 
   // For Cloudflare-protected domains, try FlareSolverr first if available

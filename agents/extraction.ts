@@ -8,6 +8,7 @@ import {
   findOrCreateLocation,
   findOrCreateOrganizer,
   findOrCreateCategory,
+  cleanupStuckRuns,
   type EventSource,
 } from "./db";
 import {
@@ -202,6 +203,11 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
   };
 
   try {
+    // Clean up any stuck runs from previous executions
+    const cleanedUp = await cleanupStuckRuns();
+    if (cleanedUp > 0) {
+      console.log(`Cleaned up ${cleanedUp} stuck agent runs`);
+    }
     // Start the agent run in the database
     await logger.startRun();
 

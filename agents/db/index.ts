@@ -11,3 +11,4 @@ export { findLocationByName, createLocation, findOrCreateLocation } from "./loca
 export { findOrganizerByName, createOrganizer, findOrCreateOrganizer } from "./organizers";
 export { findOrCreateCategory } from "./categories";
 export { getEventSources, type EventSource } from "./sources";
+export { cleanupStuckRuns } from "./runs";
