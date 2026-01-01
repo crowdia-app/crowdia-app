@@ -17,7 +17,7 @@ jobs:
     if: ${{ success() }}
     type: slack
     params:
-      webhook_url: ${{ env.SLACK_WEBHOOK_URL }}
+      webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
       payload:
         blocks:
           - type: header
@@ -45,7 +45,7 @@ jobs:
     if: ${{ failure() }}
     type: slack
     params:
-      webhook_url: ${{ env.SLACK_WEBHOOK_URL }}
+      webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
       payload:
         blocks:
           - type: header
