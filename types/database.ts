@@ -493,6 +493,8 @@ export interface Database {
           description: string;
           cover_image_url: string;
           category_id: string | null;
+          category_name: string | null;
+          category_slug: string | null;
           location_id: string;
           location_name: string;
           location_address: string;

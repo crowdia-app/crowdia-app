@@ -24,6 +24,26 @@ export interface ExtractedEvent {
   category?: string;
 }
 
+// Standardized categories for event extraction
+const STANDARD_CATEGORIES = [
+  "Nightlife",      // Club nights, DJ sets, disco, afterparties
+  "Concert",        // Live music performances, bands, artists
+  "Party",          // Private parties, themed parties, celebrations
+  "Theater",        // Plays, drama, stage performances
+  "Comedy",         // Stand-up, cabaret, comedy shows
+  "Art",            // Exhibitions, galleries, art shows
+  "Food & Wine",    // Tastings, food festivals, culinary events
+  "Tour",           // Guided tours, walking tours, excursions
+  "Festival",       // Multi-day festivals, street festivals
+  "Workshop",       // Classes, seminars, hands-on activities
+  "Cultural",       // Museums, heritage, historical events
+  "Sports",         // Sporting events, fitness activities
+  "Family",         // Kid-friendly events, family activities
+  "Networking",     // Business events, meetups, professional gatherings
+  "Film",           // Cinema, screenings, film festivals
+  "Other",          // Events that don't fit other categories
+];
+
 const eventSchema = {
   type: "object",
   properties: {
@@ -42,9 +62,9 @@ const eventSchema = {
           ticket_url: { type: "string" },
           image_url: { type: "string" },
           detail_url: { type: "string", description: "The specific URL to this event's detail page (NOT a listing page)" },
-          category: { type: "string" },
+          category: { type: "string", description: "Event category from the standard list", enum: STANDARD_CATEGORIES },
         },
-        required: ["title", "start_time", "detail_url"],
+        required: ["title", "start_time", "detail_url", "category"],
       },
     },
   },
@@ -122,6 +142,32 @@ CRITICAL LOCATION FILTER:
 - ONLY extract events physically located in Palermo, Sicily or the Palermo province (e.g., Monreale, Bagheria, Cefalù, Terrasini, Carini, etc.)
 - REJECT any events in other Italian cities (Rome, Milan, Catania, etc.) or other countries
 - If an event's location is unclear or outside Palermo province, DO NOT include it
+
+CATEGORY CLASSIFICATION (REQUIRED):
+You MUST assign a category to every event from this list:
+- "Nightlife" - Club nights, DJ sets, disco, techno, house music, afterparties, rave events
+- "Concert" - Live music performances, bands, solo artists, orchestra
+- "Party" - Private parties, themed parties, celebrations, New Year's Eve parties
+- "Theater" - Plays, drama, musicals, stage performances, opera
+- "Comedy" - Stand-up comedy, cabaret, comedy shows
+- "Art" - Exhibitions, galleries, art shows, installations
+- "Food & Wine" - Wine tastings, food festivals, culinary events, degustazioni
+- "Tour" - Guided tours, walking tours, excursions, visite guidate
+- "Festival" - Multi-day festivals, street festivals, sagre
+- "Workshop" - Classes, seminars, hands-on activities, corsi
+- "Cultural" - Museums, heritage sites, historical events, conferences
+- "Sports" - Sporting events, fitness activities, marathons
+- "Family" - Kid-friendly events, family activities
+- "Networking" - Business events, meetups, professional gatherings, aperitivi
+- "Film" - Cinema, screenings, film festivals
+- "Other" - Only if no other category fits
+
+IMPORTANT CATEGORY HINTS:
+- Events from ra.co, Xceed, Dice are typically "Nightlife" (club/DJ events)
+- Events with "DJ", "techno", "house", "disco", "rave", "afterparty" in title → "Nightlife"
+- Candlelight concerts → "Concert"
+- Teatro/theater venues → "Theater"
+- Pub crawls, aperitivo events → "Nightlife" or "Networking"
 
 EXTRACTION RULES:
 - Extract as much information as possible for each event

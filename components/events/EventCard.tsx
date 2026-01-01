@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 
 interface EventCardProps {
@@ -90,12 +91,19 @@ export function EventCard({ event, onPress }: EventCardProps) {
           {event.title}
         </Text>
 
-        {/* Location */}
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={12} color={colors.textMuted} />
-          <Text style={[styles.location, { color: colors.textMuted }]} numberOfLines={1}>
-            {event.location_name}
-          </Text>
+        {/* Location and Category Row */}
+        <View style={styles.metaRow}>
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={12} color={colors.textMuted} />
+            <Text style={[styles.location, { color: colors.textMuted }]} numberOfLines={1}>
+              {event.location_name}
+            </Text>
+          </View>
+          <CategoryBadge
+            categoryName={event.category_name}
+            categorySlug={event.category_slug}
+            size="small"
+          />
         </View>
       </View>
     </Pressable>
@@ -170,10 +178,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: Typography.base * 1.3,
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flex: 1,
   },
   location: {
     fontSize: Typography.xs,

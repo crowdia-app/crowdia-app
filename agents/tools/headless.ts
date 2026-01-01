@@ -8,12 +8,15 @@ let browser: Browser | null = null;
 async function getBrowser(): Promise<Browser> {
   if (!browser || !browser.connected) {
     browser = await puppeteer.launch({
-      headless: true,
+      headless: "new", // Use new headless mode for better stealth
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        "--disable-blink-features=AutomationControlled", // Hide automation
+        "--disable-features=IsolateOrigins,site-per-process",
+        "--window-size=1920,1080",
       ],
     });
   }
@@ -49,11 +52,26 @@ export async function fetchPageHeadless(
   try {
     // Set a realistic user agent
     await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     );
 
     // Set viewport
     await page.setViewport({ width: 1920, height: 1080 });
+
+    // Hide webdriver property to avoid detection
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      // Override plugins to look more like a real browser
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      // Override languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en', 'it'],
+      });
+    });
 
     // Navigate to the page
     await page.goto(url, {
@@ -176,10 +194,23 @@ export async function fetchPageHtmlHeadless(
 
   try {
     await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     );
 
     await page.setViewport({ width: 1920, height: 1080 });
+
+    // Hide webdriver property to avoid detection
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en', 'it'],
+      });
+    });
 
     await page.goto(url, {
       waitUntil: "networkidle2",

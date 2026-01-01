@@ -4,6 +4,7 @@ import {
   fetchWithFlareSolverr,
   extractTextFromHtml,
 } from "./flaresolverr";
+import { isRAUrl, fetchRAEvents } from "./ra-fetcher";
 
 const rateLimitState: Record<string, number> = {};
 let flareSolverrChecked = false;
@@ -136,6 +137,20 @@ async function checkFlareSolverr(): Promise<boolean> {
  */
 export async function fetchPageWithFallback(url: string): Promise<string> {
   const domain = getDomain(url);
+
+  // Special handling for RA.co - use GraphQL API to bypass Cloudflare
+  if (isRAUrl(url)) {
+    console.log("Using RA.co GraphQL API");
+    try {
+      const content = await fetchRAEvents();
+      if (content && content.length > 100) {
+        return content;
+      }
+    } catch (error) {
+      console.warn(`RA.co GraphQL failed: ${error}`);
+      // Fall through to other methods
+    }
+  }
 
   // For Cloudflare-protected domains, try FlareSolverr first if available
   if (cloudflareDomains.has(domain)) {

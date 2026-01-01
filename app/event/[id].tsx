@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import { fetchEventById } from '@/services/events';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { MapSection } from '@/components/maps/MapSection';
 
@@ -202,12 +203,17 @@ export default function EventDetailScreen() {
 
         {/* Content Section */}
         <View style={styles.content}>
-          {/* Date Badge */}
-          <View style={styles.dateBadgeContainer}>
+          {/* Date Badge and Category */}
+          <View style={styles.badgeRow}>
             <View style={[styles.dateBadge, { backgroundColor: Magenta[500] }]}>
               <Text style={styles.dateBadgeDay}>{dateInfo.day}</Text>
               <Text style={styles.dateBadgeMonth}>{dateInfo.month}</Text>
             </View>
+            <CategoryBadge
+              categoryName={event.category_name}
+              categorySlug={event.category_slug}
+              size="medium"
+            />
           </View>
 
           {/* Title */}
@@ -454,7 +460,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     marginTop: -Spacing.xxxl,
   },
-  dateBadgeContainer: {
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
     marginBottom: Spacing.md,
   },
   dateBadge: {
