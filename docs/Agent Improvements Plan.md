@@ -132,29 +132,215 @@ Fixed infinite scroll showing duplicate events:
 
 ---
 
-### 14. Image Storage (High Priority)
-**Problem:** PalermoToday images blocked by browser ORB (Origin Read Blocking)
-- 38 events affected (all from palermotoday.it / citynews CDN)
-- Images show placeholder gradient instead of actual image
+### 14. Image Storage Solution (HIGH PRIORITY)
 
-**Solution Options:**
-1. **Supabase Storage** - Download images during extraction, store in bucket
-2. **Edge Function Proxy** - Create `/api/image-proxy` endpoint
-3. **External CDN** - Use Cloudinary or similar with auto-fetch
+**Problem Analysis (Updated 2026-01-03):**
+| Issue | Events Affected | Impact |
+|-------|-----------------|--------|
+| No image at all | 136 (32%) | Events show placeholder |
+| PalermoToday/CityNews CDN blocked | 44 (10%) | ORB (Origin Read Blocking) |
+| FeverUp links (not images) | 31 (7%) | Broken image URL |
+| Third-party hotlinking | 196 (47%) | May break anytime |
 
-**Recommendation:** Option 1 (Supabase Storage) is most reliable long-term
+**Image Sources Breakdown:**
+- NO_IMAGE: 136 events
+- TICKETONE: 58 events
+- EVENTBRITE: 49 events
+- PALERMOTODAY_CDN: 44 events (blocked by ORB)
+- FEVERUP_LINK: 31 events (invalid - links not images)
+- RA.CO: 14 events
+- OTHER: 88 events
+
+**Solution: Supabase Storage**
+
+Since we're already using Supabase, this is the natural choice:
+- No additional service to configure
+- Already have auth/RLS infrastructure
+- Free tier: 1GB storage, 2GB bandwidth
+- Pro tier: 100GB storage, 200GB bandwidth
+- Image transformations available (Pro plan)
+
+---
+
+## Image Storage Implementation Plan
+
+### Phase 1: Infrastructure Setup
+
+#### 1.1 Create Storage Bucket
+```sql
+-- Create public bucket for event images
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'event-images',
+  'event-images',
+  true,  -- Public bucket for easy access
+  5242880,  -- 5MB max file size
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+);
+
+-- RLS policy: Anyone can read public images
+CREATE POLICY "Public read access" ON storage.objects
+FOR SELECT USING (bucket_id = 'event-images');
+
+-- RLS policy: Service role can upload (agents only)
+CREATE POLICY "Service role upload" ON storage.objects
+FOR INSERT TO service_role WITH CHECK (bucket_id = 'event-images');
+```
+
+### Phase 2: Image Download Module
+
+#### 2.1 Create `agents/tools/image-storage.ts`
+
+```typescript
+import { getSupabase } from "../db";
+
+interface ImageUploadResult {
+  success: boolean;
+  publicUrl?: string;
+  error?: string;
+}
+
+async function downloadImage(url: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; CrowdiaBot/1.0)',
+        'Accept': 'image/*',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) return null;
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.startsWith('image/')) return null;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length < 5000) return null; // Skip tiny/placeholder images
+
+    return { buffer, contentType };
+  } catch (error) {
+    console.error(`Failed to download image: ${url}`, error);
+    return null;
+  }
+}
+
+function getFileExtension(url: string, contentType: string): string {
+  const urlMatch = url.match(/\.(jpe?g|png|webp|gif)/i);
+  if (urlMatch) return urlMatch[1].toLowerCase().replace('jpeg', 'jpg');
+  if (contentType.includes('png')) return 'png';
+  if (contentType.includes('webp')) return 'webp';
+  if (contentType.includes('gif')) return 'gif';
+  return 'jpg';
+}
+
+export async function uploadEventImage(
+  eventId: string,
+  imageUrl: string
+): Promise<ImageUploadResult> {
+  const imageData = await downloadImage(imageUrl);
+  if (!imageData) {
+    return { success: false, error: 'Failed to download image' };
+  }
+
+  const ext = getFileExtension(imageUrl, imageData.contentType);
+  const filePath = `events/${eventId}.${ext}`;
+
+  const { error } = await getSupabase().storage
+    .from('event-images')
+    .upload(filePath, imageData.buffer, {
+      contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+      upsert: true,
+      cacheControl: '31536000',
+    });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  const { data: urlData } = getSupabase().storage
+    .from('event-images')
+    .getPublicUrl(filePath);
+
+  return { success: true, publicUrl: urlData.publicUrl };
+}
+```
+
+### Phase 3: Integration with Extraction Agent
+
+After creating an event, download image and update `cover_image_url`:
+
+```typescript
+// After createEvent() succeeds:
+if (eventId && extracted.image_url) {
+  const imageResult = await uploadEventImage(eventId, extracted.image_url);
+  if (imageResult.success) {
+    await updateEvent(eventId, { cover_image_url: imageResult.publicUrl });
+    stats.imagesStored++;
+  }
+}
+```
+
+### Phase 4: Migration Script
+
+Create `agents/migrate-images.ts` to backfill existing events:
+
+```typescript
+// Get events with external URLs (not already in our bucket)
+const { data: events } = await supabase
+  .from('events')
+  .select('id, cover_image_url')
+  .not('cover_image_url', 'like', '%supabase.co%')
+  .not('cover_image_url', 'eq', '')
+  .limit(50);
+
+for (const event of events) {
+  const result = await uploadEventImage(event.id, event.cover_image_url);
+  if (result.success) {
+    await supabase
+      .from('events')
+      .update({ cover_image_url: result.publicUrl })
+      .eq('id', event.id);
+  }
+}
+```
+
+---
+
+### Implementation Order
+
+1. **Create storage bucket** (migration)
+2. **Create image-storage.ts module** (new file)
+3. **Add migration script** (new file)
+4. **Run migration for existing events** (one-time)
+5. **Integrate with extraction agent** (modify extraction.ts)
+
+### Expected Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Events with no image | 136 (32%) | ~50 (12%)* |
+| Events with blocked images | 44 (10%) | 0 (0%) |
+| Events with invalid URLs | 31 (7%) | 0 (0%) |
+| Reliable image display | 61% | 88%+ |
+
+*Some sources genuinely don't provide images
+
+### Supabase Storage Costs (Pro Plan)
+
+- Storage: $0.021/GB/month (first 100GB included)
+- Bandwidth: $0.09/GB (first 200GB included)
+- Image Transformations: $5/1000 origin images (100 included)
+
+Estimated usage for ~400 events with ~200KB average:
+- Storage: ~80MB (well within free tier)
+- Bandwidth: ~2GB/month (within Pro tier limits)
 
 ---
 
 ## Planned Improvements
 
 ### Agent & Extraction
-
-#### 14. Image Download & Storage
-- Download images during extraction
-- Store in Supabase Storage bucket
-- Update `cover_image_url` to point to stored image
-- Add image quality validation (minimum size, not placeholder)
 
 #### 15. Event Cancellation Detection
 If an event disappears from source:
@@ -295,25 +481,34 @@ Simple web interface to:
 ## Priority Order
 
 ### Immediate (This Week)
+
 1. ~~Fix pagination duplicates~~ ✅
 2. ~~In-run deduplication~~ ✅
-3. **Fix PalermoToday extraction** (was best source, now 0)
-4. **Add JSON repair logic** (2 sources failing)
-5. **Remove RA.co venue URLs** (~188 duplicates/run)
-6. **Add trusted source whitelist** (49 listing URLs skipped)
+3. **Image Storage Solution** - See detailed plan above
+   - Create Supabase Storage bucket
+   - Add stored_image_path column
+   - Create image-storage.ts module
+   - Migrate existing events
+   - Integrate with extraction agent
+4. **Fix PalermoToday extraction** (was best source, now 0)
+5. **Add JSON repair logic** (2 sources failing)
 
 ### Short Term (Next 2 Weeks)
-7. Image storage solution
+
+6. **Remove RA.co venue URLs** (~188 duplicates/run)
+7. **Add trusted source whitelist** (49 listing URLs skipped)
 8. Investigate other broken sources (Eventbrite, Rockol, etc.)
 9. Event detail page
 
 ### Medium Term (Next Month)
+
 10. User favorites
 11. Admin review UI
 12. Category filtering
 13. Search improvements
 
 ### Long Term (Future)
+
 14. Push notifications
 15. Social features
 16. Analytics dashboard

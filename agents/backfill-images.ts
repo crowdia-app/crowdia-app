@@ -2,6 +2,7 @@ import { getSupabase } from "./db/client";
 import { updateEvent } from "./db/events";
 import { braveSearch } from "./tools/brave-search";
 import { fetchPageHtmlHeadless, closeBrowser } from "./tools/headless";
+import { uploadEventImage } from "./tools/image-storage";
 
 interface EventWithMissingImage {
   id: string;
@@ -244,9 +245,20 @@ export async function backfillImages(): Promise<void> {
 
         console.log(`  📷 Found image: ${imageUrl.substring(0, 60)}...`);
 
+        // Upload image to Supabase Storage
+        const uploadResult = await uploadEventImage(event.id, imageUrl);
+
+        let finalImageUrl = imageUrl;
+        if (uploadResult.success && uploadResult.publicUrl) {
+          console.log(`  ☁️ Uploaded to storage`);
+          finalImageUrl = uploadResult.publicUrl;
+        } else {
+          console.log(`  ⚠️ Storage upload failed, using original URL`);
+        }
+
         // Update the event with both new URL (if changed) and image
         const updates: { cover_image_url: string; event_url?: string } = {
-          cover_image_url: imageUrl,
+          cover_image_url: finalImageUrl,
         };
 
         if (eventUrl !== event.event_url) {

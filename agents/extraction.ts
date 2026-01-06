@@ -17,6 +17,7 @@ import {
   sendAgentReport,
   alertError,
   closeBrowser,
+  uploadEventImage,
   type ExtractedEvent,
   type AgentReport,
 } from "./tools";
@@ -37,6 +38,7 @@ interface ExtractionStats {
   locationsCreated: number;
   organizersCreated: number;
   rateLimitErrors: number;
+  imagesStored: number;
 }
 
 interface ProcessedEvent {
@@ -222,6 +224,7 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
     locationsCreated: 0,
     organizersCreated: 0,
     rateLimitErrors: 0,
+    imagesStored: 0,
   };
 
   try {
@@ -433,6 +436,15 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
         if (eventId) {
           console.log(`Created: ${extracted.title}`);
           stats.eventsCreated++;
+
+          // Upload image to Supabase Storage if available
+          if (extracted.image_url) {
+            const imageResult = await uploadEventImage(eventId, extracted.image_url);
+            if (imageResult.success && imageResult.publicUrl) {
+              await updateEvent(eventId, { cover_image_url: imageResult.publicUrl });
+              stats.imagesStored++;
+            }
+          }
         } else {
           stats.eventsFailed++;
         }
@@ -456,6 +468,7 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
         "Events Found": stats.eventsFound,
         "Events Created": stats.eventsCreated,
         "Events Updated": stats.eventsUpdated,
+        "Images Stored": stats.imagesStored,
         "Duplicates (In-Run)": stats.eventsDuplicateInRun,
         "Duplicates (Exact)": stats.eventsDuplicateExact,
         "Duplicates (Fuzzy)": stats.eventsDuplicateFuzzy,
@@ -485,6 +498,7 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
     await logger.info(`Events found: ${stats.eventsFound}`);
     await logger.info(`Events created: ${stats.eventsCreated}`);
     await logger.info(`Events updated: ${stats.eventsUpdated}`);
+    await logger.info(`Images stored: ${stats.imagesStored}`);
     await logger.info(`Duplicates: ${totalDuplicates} (${stats.eventsDuplicateInRun} in-run, ${stats.eventsDuplicateExact} exact, ${stats.eventsDuplicateFuzzy} fuzzy)`);
     await logger.info(`Past events skipped: ${stats.eventsSkippedPast}`);
     await logger.info(`Listing URL skipped: ${stats.eventsSkippedListingUrl}`);
