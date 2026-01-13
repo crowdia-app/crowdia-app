@@ -33,8 +33,21 @@ function repairAndParseJSON(responseContent: string): any {
 
       return JSON.parse(json);
     } catch (secondError) {
-      // Try to close unclosed brackets
+      // Handle truncated strings (incomplete quotes)
       try {
+        // Find the last valid property by removing incomplete trailing content
+        // Look for patterns like: "key": "incomplete_value (no closing quote)
+        // Remove everything from the last incomplete string value onward
+        const lastCompleteProperty = json.lastIndexOf('",');
+        if (lastCompleteProperty > 0) {
+          // Keep content up to last complete property, then close the JSON
+          json = json.substring(0, lastCompleteProperty + 1);
+        }
+
+        // Remove trailing commas before closing brackets
+        json = json.replace(/,(\s*[\]}])/g, '$1');
+
+        // Try to close unclosed brackets
         const openBraces = (json.match(/\{/g) || []).length;
         const closeBraces = (json.match(/\}/g) || []).length;
         const openBrackets = (json.match(/\[/g) || []).length;
@@ -46,7 +59,8 @@ function repairAndParseJSON(responseContent: string): any {
 
         return JSON.parse(json);
       } catch (thirdError) {
-        console.error("JSON repair failed. First 500 chars of response:", jsonStr.substring(0, 500));
+        console.error("JSON repair failed. First 1000 chars of response:", jsonStr.substring(0, 1000));
+        console.error("Last 500 chars of response:", jsonStr.substring(Math.max(0, jsonStr.length - 500)));
         throw new Error(`JSON parsing failed after repair attempts: ${thirdError}`);
       }
     }
@@ -255,13 +269,20 @@ IMPORTANT: Respond ONLY with valid JSON matching this schema (no markdown, no ex
 ${JSON.stringify(eventSchema, null, 2)}`,
           },
         ],
-        max_tokens: 8192,
+        max_tokens: 16384, // Increased to handle large event listings without truncation
         temperature: 0.3,
       });
     });
 
     const responseContent = response.choices[0]?.message?.content;
     if (!responseContent) return [];
+
+    // Check if response was truncated (finish_reason should be 'stop' for complete responses)
+    const finishReason = response.choices[0]?.finish_reason;
+    if (finishReason === 'length') {
+      console.warn(`⚠️  LLM response was truncated (hit max_tokens limit). Source: ${sourceName}`);
+      console.warn(`This may result in incomplete event extraction. Consider reducing input size or increasing max_tokens.`);
+    }
 
     // Parse JSON from response with repair logic
     const parsed = repairAndParseJSON(responseContent);
