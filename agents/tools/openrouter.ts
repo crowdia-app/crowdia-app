@@ -2,6 +2,62 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { config } from "../config";
 
+/**
+ * Fix unescaped quotes in JSON string values
+ * This handles cases where the LLM generates strings like: "title": "Film "Title" here"
+ * and converts them to: "title": "Film \"Title\" here"
+ */
+function fixUnescapedQuotes(jsonStr: string): string {
+  // Use a state machine to track if we're inside a string value
+  let result = '';
+  let inString = false;
+  let inPropertyName = false;
+  let afterColon = false;
+
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+    const prevChar = i > 0 ? jsonStr[i - 1] : '';
+    const nextChar = i < jsonStr.length - 1 ? jsonStr[i + 1] : '';
+
+    if (char === '"' && prevChar !== '\\') {
+      if (!inString) {
+        // Starting a new string
+        inString = true;
+        inPropertyName = !afterColon;
+        afterColon = false;
+        result += char;
+      } else {
+        // Ending a string or unescaped quote inside?
+        // Check if this is the closing quote by looking ahead
+        const isClosingQuote = nextChar === ',' || nextChar === '}' || nextChar === ']' ||
+                               nextChar === ':' || nextChar === ' ' || nextChar === '\n' ||
+                               nextChar === '\r' || nextChar === '\t';
+
+        if (inPropertyName && nextChar === ':') {
+          // End of property name
+          inString = false;
+          inPropertyName = false;
+          result += char;
+        } else if (isClosingQuote) {
+          // End of string value
+          inString = false;
+          result += char;
+        } else {
+          // Unescaped quote inside string value - escape it
+          result += '\\' + char;
+        }
+      }
+    } else if (char === ':' && !inString) {
+      afterColon = true;
+      result += char;
+    } else {
+      result += char;
+    }
+  }
+
+  return result;
+}
+
 export const openrouter = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
   apiKey: config.openRouterKey,
@@ -241,9 +297,12 @@ ${JSON.stringify(eventSchema, null, 2)}`,
     console.warn(`⚠️  LLM response truncated (hit max_tokens). Source: ${sourceName}, attempt: ${attempt}/${maxAttempts}`);
   }
 
+  // Fix unescaped quotes in JSON strings before parsing
+  const fixedContent = fixUnescapedQuotes(responseContent);
+
   // Parse and validate with Zod
   try {
-    const parsed = JSON.parse(responseContent);
+    const parsed = JSON.parse(fixedContent);
     const validated = ExtractedEventsResponseSchema.parse(parsed);
     return validated.events as ExtractedEvent[];
   } catch (error) {
