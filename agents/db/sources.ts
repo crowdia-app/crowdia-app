@@ -11,6 +11,27 @@ export interface EventSource {
 export async function getEventSources(): Promise<EventSource[]> {
   const sources: EventSource[] = [];
 
+  // INSTAGRAM SOURCES FIRST - these are often the primary source for promoters
+  // and were getting skipped when processed last due to 300-event limit
+  const { data: instagramOrganizers } = await getSupabase()
+    .from("organizers")
+    .select("id, organization_name, instagram_handle")
+    .not("instagram_handle", "is", null)
+    .neq("instagram_handle", "");
+
+  instagramOrganizers?.forEach((o) => {
+    if (o.instagram_handle) {
+      const handle = o.instagram_handle.replace(/^@/, "");
+      sources.push({
+        type: "instagram",
+        id: o.id,
+        name: o.organization_name,
+        url: `https://www.instagram.com/${handle}/`,
+        instagramHandle: o.instagram_handle,
+      });
+    }
+  });
+
   // Get aggregators
   const { data: aggregators } = await getSupabase()
     .from("event_aggregators")
@@ -56,26 +77,6 @@ export async function getEventSources(): Promise<EventSource[]> {
       : null;
     if (url) {
       sources.push({ type: "organizer", id: o.id, name: o.organization_name, url });
-    }
-  });
-
-  // Get organizers with instagram_handle (for Instagram scraping)
-  const { data: instagramOrganizers } = await getSupabase()
-    .from("organizers")
-    .select("id, organization_name, instagram_handle")
-    .not("instagram_handle", "is", null)
-    .neq("instagram_handle", "");
-
-  instagramOrganizers?.forEach((o) => {
-    if (o.instagram_handle) {
-      const handle = o.instagram_handle.replace(/^@/, "");
-      sources.push({
-        type: "instagram",
-        id: o.id,
-        name: o.organization_name,
-        url: `https://www.instagram.com/${handle}/`,
-        instagramHandle: o.instagram_handle,
-      });
     }
   });
 
