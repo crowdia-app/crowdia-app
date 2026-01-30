@@ -819,6 +819,13 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
     accountsEventRelated: 0,
     accountsInPalermo: 0,
     organizersCreated: 0,
+    // Website validation stats
+    websitesProcessed: 0,
+    websitesValidated: 0,
+    websitesSkipped: 0,
+    // Instagram search stats
+    orgNamesSearched: 0,
+    instagramHandlesFound: 0,
   };
 
   try {
@@ -838,10 +845,18 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
       await logger.warn("Apify not configured - skipping Instagram validation");
     }
 
-    // Phase 2: Web search discovery
+    // Phase 2: Process website sources
+    await processWebsiteSources(logger, stats, 5);
+
+    // Phase 3: Search Instagram for organization names
+    if (isApifyConfigured()) {
+      await processOrgNames(logger, stats, 3);
+    }
+
+    // Phase 4: Web search discovery
     await runWebSearchDiscovery(logger, stats);
 
-    // Phase 3: Log top hashtags (for monitoring)
+    // Phase 5: Log top hashtags (for monitoring)
     const topHashtags = await getTopHashtags(10);
     if (topHashtags.length > 0) {
       await logger.info(`Top hashtags: ${topHashtags.map(h => `#${h.tag} (${h.occurrence_count})`).join(", ")}`);
@@ -868,13 +883,20 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
         "Accounts Active": stats.accountsActive,
         "Event-Related": stats.accountsEventRelated,
         "In Palermo": stats.accountsInPalermo,
+        // Website validation
+        "Websites Processed": stats.websitesProcessed,
+        "Websites Validated": stats.websitesValidated,
+        "Websites Skipped": stats.websitesSkipped,
+        // Instagram search
+        "Org Names Searched": stats.orgNamesSearched,
+        "IG Handles Found": stats.instagramHandlesFound,
       },
       errors,
     };
 
     await sendAgentReport(report);
 
-    const summary = `Validated ${stats.sourcesValidated} sources, added ${stats.newSourcesAdded} aggregators`;
+    const summary = `Validated ${stats.sourcesValidated} IG + ${stats.websitesValidated} websites, found ${stats.instagramHandlesFound} handles, added ${stats.newSourcesAdded} aggregators`;
     await logger.completeRun(
       errors.length === 0 ? "completed" : "failed",
       stats,
@@ -883,9 +905,13 @@ export async function runDiscoveryAgent(): Promise<DiscoveryStats> {
     );
 
     await logger.success("--- Discovery v2 Complete ---");
-    await logger.info(`Potential sources processed: ${stats.potentialSourcesProcessed}`);
-    await logger.info(`Sources validated: ${stats.sourcesValidated}`);
-    await logger.info(`Sources skipped: ${stats.sourcesSkipped}`);
+    await logger.info(`Instagram sources processed: ${stats.potentialSourcesProcessed}`);
+    await logger.info(`Instagram sources validated: ${stats.sourcesValidated}`);
+    await logger.info(`Instagram sources skipped: ${stats.sourcesSkipped}`);
+    await logger.info(`Websites processed: ${stats.websitesProcessed}`);
+    await logger.info(`Websites validated: ${stats.websitesValidated}`);
+    await logger.info(`Org names searched: ${stats.orgNamesSearched}`);
+    await logger.info(`Instagram handles found: ${stats.instagramHandlesFound}`);
     await logger.info(`Web search sources added: ${stats.newSourcesAdded}`);
 
     return stats;
