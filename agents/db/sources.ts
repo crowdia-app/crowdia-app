@@ -52,6 +52,7 @@ async function getEventSourcesNewSchema(): Promise<EventSource[]> {
       location_id,
       is_aggregator,
       reliability_score,
+      instagram_handle,
       organizers:organizer_id (id, organization_name, instagram_handle),
       locations:location_id (id, name)
     `)
@@ -66,7 +67,8 @@ async function getEventSourcesNewSchema(): Promise<EventSource[]> {
   eventSources?.forEach((s: any) => {
     const orgName = s.organizers?.organization_name;
     const locName = s.locations?.name;
-    const instagramHandle = s.type === 'instagram' && s.organizers?.instagram_handle;
+    // Use instagram_handle from event_sources first, fall back to organizer's handle
+    const instagramHandle = s.type === 'instagram' && (s.instagram_handle || s.organizers?.instagram_handle);
     
     // Determine the source type for extraction
     let sourceType: EventSource['type'];
