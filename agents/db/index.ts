@@ -22,4 +22,7 @@ export {
   updatePotentialSourceStatus,
   createEventSourceWithProvenance,
   isHandleTracked,
+  queueWebsiteSources,
+  getPendingWebsiteSources,
+  queueOrganizerNames,
 } from "./discovery";

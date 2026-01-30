@@ -71,12 +71,13 @@ export async function updateHashtagStats(
 
 /**
  * Queue potential sources for discovery agent to process
+ * Supports both Instagram handles and website URLs
  */
 export async function queuePotentialSources(
   handles: string[],
   discoveredVia: {
     sourceId: string;
-    method: "mention" | "collab_post" | "tagged_user" | "hashtag";
+    method: "mention" | "collab_post" | "tagged_user" | "hashtag" | "website_crawl";
   }
 ): Promise<{ queued: number; updated: number }> {
   if (handles.length === 0) return { queued: 0, updated: 0 };
@@ -293,4 +294,159 @@ export async function isHandleTracked(handle: string): Promise<boolean> {
     .single();
   
   return !!byUrl;
+}
+
+/**
+ * Queue website sources for discovery validation
+ */
+export async function queueWebsiteSources(
+  sources: Array<{ url: string; name?: string; platform?: string }>,
+  discoveredVia: {
+    sourceId: string;
+    method: "website_crawl" | "event_page";
+  }
+): Promise<{ queued: number; updated: number }> {
+  if (sources.length === 0) return { queued: 0, updated: 0 };
+
+  let queued = 0;
+  let updated = 0;
+
+  for (const source of sources) {
+    try {
+      const urlObj = new URL(source.url);
+      const normalizedUrl = urlObj.origin + urlObj.pathname.replace(/\/$/, "");
+      const hostname = urlObj.hostname.replace("www.", "");
+
+      // Check if already exists in potential_sources
+      const { data: existing } = await getSupabase()
+        .from("potential_sources")
+        .select("id, occurrence_count")
+        .eq("handle", normalizedUrl)
+        .eq("platform", "website")
+        .single();
+
+      if (existing) {
+        await getSupabase()
+          .from("potential_sources")
+          .update({
+            occurrence_count: existing.occurrence_count + 1,
+            last_seen_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+        updated++;
+        continue;
+      }
+
+      // Check if already an event source
+      const { data: existingSource } = await getSupabase()
+        .from("event_sources")
+        .select("id")
+        .eq("url", normalizedUrl)
+        .single();
+
+      if (existingSource) continue;
+
+      // Also check base URL
+      const { data: existingByBase } = await getSupabase()
+        .from("event_sources")
+        .select("id")
+        .eq("url", urlObj.origin)
+        .single();
+
+      if (existingByBase) continue;
+
+      // Insert new potential source
+      const { error } = await getSupabase()
+        .from("potential_sources")
+        .insert({
+          handle: normalizedUrl,
+          platform: source.platform || "website",
+          discovered_via_source_id: discoveredVia.sourceId,
+          discovered_via_method: discoveredVia.method,
+          metadata: { name: source.name, hostname },
+        });
+
+      if (!error) {
+        queued++;
+      }
+    } catch (e) {
+      // Invalid URL, skip
+    }
+  }
+
+  return { queued, updated };
+}
+
+/**
+ * Get pending website sources for validation
+ */
+export async function getPendingWebsiteSources(limit: number = 10): Promise<{
+  id: string;
+  handle: string; // URL for websites
+  platform: string;
+  discovered_via_source_id: string | null;
+  discovered_via_method: string;
+  occurrence_count: number;
+  metadata?: { name?: string; hostname?: string };
+}[]> {
+  const { data, error } = await getSupabase()
+    .from("potential_sources")
+    .select("id, handle, platform, discovered_via_source_id, discovered_via_method, occurrence_count, metadata")
+    .eq("validation_status", "pending")
+    .neq("platform", "instagram")
+    .order("occurrence_count", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching pending website sources:", error.message);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Queue organizer names for Instagram search
+ */
+export async function queueOrganizerNames(
+  names: string[],
+  discoveredVia: {
+    sourceId: string;
+    method: "website_crawl";
+  }
+): Promise<{ queued: number }> {
+  if (names.length === 0) return { queued: 0 };
+
+  let queued = 0;
+
+  for (const name of names) {
+    const normalizedName = name.toLowerCase().trim();
+    if (normalizedName.length < 3) continue;
+
+    // Check if already exists
+    const { data: existing } = await getSupabase()
+      .from("potential_sources")
+      .select("id")
+      .eq("handle", normalizedName)
+      .eq("platform", "org_name")
+      .single();
+
+    if (existing) continue;
+
+    const { error } = await getSupabase()
+      .from("potential_sources")
+      .insert({
+        handle: normalizedName,
+        platform: "org_name",
+        discovered_via_source_id: discoveredVia.sourceId,
+        discovered_via_method: discoveredVia.method,
+        metadata: { original_name: name },
+      });
+
+    if (!error) {
+      queued++;
+    }
+  }
+
+  return { queued };
 }

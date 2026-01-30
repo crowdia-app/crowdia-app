@@ -3,10 +3,12 @@ import {
   getSupabase,
   cleanupStuckRuns,
   getPendingPotentialSources,
+  getPendingWebsiteSources,
   updatePotentialSourceStatus,
   createEventSourceWithProvenance,
   getTopHashtags,
   findOrCreateOrganizer,
+  queuePotentialSources,
 } from "./db";
 import {
   searchEventSources,
@@ -14,6 +16,8 @@ import {
   alertError,
   scrapeInstagramProfile,
   isApifyConfigured,
+  fetchPageWithFallback,
+  extractLinksFromHtml,
   type SearchResult,
   type AgentReport,
   type InstagramPost,
@@ -41,6 +45,13 @@ interface DiscoveryStats {
   accountsInPalermo: number;
   // Enrichment stats
   organizersCreated: number;
+  // Website validation stats
+  websitesProcessed: number;
+  websitesValidated: number;
+  websitesSkipped: number;
+  // Instagram search stats
+  orgNamesSearched: number;
+  instagramHandlesFound: number;
 }
 
 interface ValidationResult {
@@ -59,6 +70,21 @@ interface ValidationResult {
   followerCount?: number;
   postCount?: number;
   recentPosts?: InstagramPost[];
+}
+
+interface WebsiteValidationResult {
+  isValid: boolean;
+  score: number; // 0-5
+  checks: {
+    isAccessible: boolean;
+    hasEventContent: boolean;
+    isActive: boolean;
+    isPalermoRelated: boolean;
+    hasSocialLinks: boolean;
+  };
+  notes: string;
+  instagramHandles?: string[];
+  eventPlatformLinks?: string[];
 }
 
 // Known event aggregator patterns - prioritized by extraction success rate
@@ -143,6 +169,295 @@ function isBlockedSource(url: string): boolean {
     return false;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Validate a website for event content
+ */
+async function validateWebsite(
+  url: string,
+  logger: AgentLogger
+): Promise<WebsiteValidationResult> {
+  const result: WebsiteValidationResult = {
+    isValid: false,
+    score: 0,
+    checks: {
+      isAccessible: false,
+      hasEventContent: false,
+      isActive: false,
+      isPalermoRelated: false,
+      hasSocialLinks: false,
+    },
+    notes: "",
+    instagramHandles: [],
+    eventPlatformLinks: [],
+  };
+
+  try {
+    await logger.debug(`Validating website: ${url}`);
+    
+    // Fetch the page
+    const content = await fetchPageWithFallback(url);
+    
+    if (!content || content.length < 100) {
+      result.notes = "Page content too short or inaccessible";
+      return result;
+    }
+    
+    result.checks.isAccessible = true;
+    result.score++;
+    
+    const contentLower = content.toLowerCase();
+    
+    // Check for event-related content
+    const eventKeywordCount = EVENT_KEYWORDS.filter(kw => 
+      contentLower.includes(kw.toLowerCase())
+    ).length;
+    
+    if (eventKeywordCount >= 3) {
+      result.checks.hasEventContent = true;
+      result.score++;
+    } else {
+      result.notes += "Limited event-related content. ";
+    }
+    
+    // Check for Palermo/Sicily location
+    const locationMatches = PALERMO_KEYWORDS.filter(kw =>
+      contentLower.includes(kw.toLowerCase())
+    );
+    
+    if (locationMatches.length >= 1) {
+      result.checks.isPalermoRelated = true;
+      result.score++;
+    } else {
+      result.notes += "No Palermo/Sicily location indicators. ";
+    }
+    
+    // Check for date patterns (indicates active events)
+    const datePatterns = [
+      /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/,  // DD/MM/YYYY or similar
+      /\b(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+\d{1,2}/i,
+      /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}/i,
+      /\b\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)/i,
+    ];
+    
+    const hasRecentDates = datePatterns.some(pattern => pattern.test(content));
+    if (hasRecentDates) {
+      result.checks.isActive = true;
+      result.score++;
+    } else {
+      result.notes += "No recent date patterns found. ";
+    }
+    
+    // Extract social links
+    const extractedLinks = extractLinksFromHtml(content, url);
+    
+    const igHandles = extractedLinks.socialLinks
+      .filter(l => l.platform === "instagram" && l.handle)
+      .map(l => l.handle!);
+    
+    if (igHandles.length > 0) {
+      result.checks.hasSocialLinks = true;
+      result.instagramHandles = igHandles;
+      result.score++;
+    }
+    
+    result.eventPlatformLinks = extractedLinks.eventPlatformLinks.map(l => l.url);
+    
+    // Determine validity (need at least 3/5 checks)
+    result.isValid = result.score >= 3;
+    result.notes = result.notes.trim() || `Validation score: ${result.score}/5`;
+    
+    return result;
+  } catch (error) {
+    result.notes = `Validation error: ${error instanceof Error ? error.message : String(error)}`;
+    return result;
+  }
+}
+
+/**
+ * Search Instagram for an organization name
+ * Uses Apify to search/lookup profiles
+ */
+async function searchInstagramForOrg(
+  orgName: string,
+  logger: AgentLogger
+): Promise<string | null> {
+  try {
+    // Clean up the org name for search
+    const searchTerm = orgName
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, "")
+      .substring(0, 30);
+    
+    if (searchTerm.length < 3) return null;
+    
+    await logger.debug(`Searching Instagram for: ${orgName} (${searchTerm})`);
+    
+    // Try direct profile lookup first (most common pattern)
+    try {
+      const posts = await scrapeInstagramProfile(searchTerm, 1);
+      if (posts && posts.length > 0) {
+        await logger.debug(`Found @${searchTerm} directly`);
+        return searchTerm;
+      }
+    } catch {
+      // Profile doesn't exist with that exact name
+    }
+    
+    // Try common variations
+    const variations = [
+      searchTerm.replace(/\s/g, "_"),
+      searchTerm.replace(/\s/g, "."),
+      `${searchTerm}_official`,
+      `${searchTerm}_palermo`,
+    ];
+    
+    for (const variant of variations) {
+      if (variant.length < 3 || variant.length > 30) continue;
+      
+      try {
+        const posts = await scrapeInstagramProfile(variant, 1);
+        if (posts && posts.length > 0) {
+          await logger.debug(`Found @${variant} as variant`);
+          return variant;
+        }
+      } catch {
+        // Variant doesn't exist
+      }
+      
+      // Rate limit between attempts
+      await sleep(1000);
+    }
+    
+    return null;
+  } catch (error) {
+    await logger.warn(`Instagram search failed for "${orgName}": ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
+/**
+ * Process pending website sources
+ */
+async function processWebsiteSources(
+  logger: AgentLogger,
+  stats: DiscoveryStats,
+  limit: number = 5
+): Promise<void> {
+  const pending = await getPendingWebsiteSources(limit);
+  
+  if (pending.length === 0) {
+    await logger.info("No pending website sources to process");
+    return;
+  }
+  
+  await logger.info(`Processing ${pending.length} website sources`);
+  
+  for (const source of pending) {
+    stats.websitesProcessed++;
+    
+    try {
+      // Skip blocked sources
+      if (isBlockedSource(source.handle)) {
+        await updatePotentialSourceStatus(source.id, "skipped", 0, "Blocked domain");
+        stats.websitesSkipped++;
+        continue;
+      }
+      
+      const validation = await validateWebsite(source.handle, logger);
+      
+      if (validation.isValid) {
+        // Create event source
+        await createEventSourceWithProvenance({
+          url: source.handle,
+          type: "website",
+          discoveredViaSourceId: source.discovered_via_source_id || undefined,
+          discoveredViaMethod: source.discovered_via_method,
+          reliabilityScore: validation.score * 20,
+          enabled: validation.score >= 4, // Auto-enable high-scoring sites
+        });
+        
+        await updatePotentialSourceStatus(source.id, "validated", validation.score, validation.notes);
+        stats.websitesValidated++;
+        await logger.success(`Validated website: ${source.handle} (score: ${validation.score}/5)`);
+        
+        // Queue discovered Instagram handles
+        if (validation.instagramHandles && validation.instagramHandles.length > 0) {
+          const { queued } = await queuePotentialSources(validation.instagramHandles, {
+            sourceId: source.id,
+            method: "website_crawl",
+          });
+          if (queued > 0) {
+            await logger.debug(`Queued ${queued} Instagram handles from ${source.handle}`);
+          }
+        }
+      } else {
+        await updatePotentialSourceStatus(source.id, "skipped", validation.score, validation.notes);
+        stats.websitesSkipped++;
+        await logger.debug(`Skipped website: ${source.handle} (score: ${validation.score}/5)`);
+      }
+      
+      // Rate limiting
+      await sleep(2000);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await updatePotentialSourceStatus(source.id, "rejected", 0, `Error: ${errorMsg}`);
+      stats.websitesSkipped++;
+      await logger.warn(`Failed to validate website ${source.handle}: ${errorMsg}`);
+    }
+  }
+}
+
+/**
+ * Process organization names to find Instagram handles
+ */
+async function processOrgNames(
+  logger: AgentLogger,
+  stats: DiscoveryStats,
+  limit: number = 3
+): Promise<void> {
+  // Get org names from potential_sources where platform = 'org_name'
+  const { data: pending, error } = await getSupabase()
+    .from("potential_sources")
+    .select("id, handle, metadata")
+    .eq("platform", "org_name")
+    .eq("validation_status", "pending")
+    .limit(limit);
+  
+  if (error || !pending || pending.length === 0) {
+    return;
+  }
+  
+  await logger.info(`Searching Instagram for ${pending.length} organization names`);
+  
+  for (const org of pending) {
+    stats.orgNamesSearched++;
+    
+    const originalName = (org.metadata as any)?.original_name || org.handle;
+    const igHandle = await searchInstagramForOrg(originalName, logger);
+    
+    if (igHandle) {
+      // Queue the found handle
+      const { queued } = await queuePotentialSources([igHandle], {
+        sourceId: org.id,
+        method: "website_crawl",
+      });
+      
+      if (queued > 0) {
+        stats.instagramHandlesFound++;
+        await logger.success(`Found Instagram @${igHandle} for "${originalName}"`);
+      }
+      
+      await updatePotentialSourceStatus(org.id, "validated", 5, `Found Instagram: @${igHandle}`);
+    } else {
+      await updatePotentialSourceStatus(org.id, "skipped", 0, "No Instagram found");
+    }
+    
+    // Rate limiting between searches
+    await sleep(3000);
   }
 }
 

@@ -15,10 +15,13 @@ import {
   extractHashtags,
   updateHashtagStats,
   queuePotentialSources,
+  queueWebsiteSources,
+  queueOrganizerNames,
   type EventSource,
 } from "./db";
 import {
   fetchPageWithFallback,
+  fetchPageDirect,
   extractEventsFromContent,
   extractEventsFromInstagramPosts,
   sendAgentReport,
@@ -29,9 +32,13 @@ import {
   SOURCE_RETRY_OPTIONS,
   scrapeInstagramProfile,
   isApifyConfigured,
+  extractLinksFromHtml,
+  extractOrganizerNames,
+  extractVenueNames,
   type ExtractedEvent,
   type AgentReport,
   type InstagramPost,
+  type ExtractedLinks,
 } from "./tools";
 import type { EventInsert } from "../types/database";
 import { AgentLogger } from "./logger";
@@ -61,6 +68,11 @@ interface ExtractionStats {
   hashtagsExtracted: number;
   potentialSourcesQueued: number;
   collabUsersExtracted: number;
+  // Web crawling stats
+  socialLinksExtracted: number;
+  eventPlatformLinksExtracted: number;
+  websiteSourcesQueued: number;
+  organizerNamesQueued: number;
 }
 
 interface ProcessedEvent {
@@ -257,6 +269,11 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
     hashtagsExtracted: 0,
     potentialSourcesQueued: 0,
     collabUsersExtracted: 0,
+    // Web crawling stats
+    socialLinksExtracted: 0,
+    eventPlatformLinksExtracted: 0,
+    websiteSourcesQueued: 0,
+    organizerNamesQueued: 0,
   };
 
   try {
@@ -451,6 +468,83 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
           // Fetch page content
           const content = await fetchPageWithFallback(source.url);
           await logger.debug(`Fetched ${content.length} chars from ${source.name}`);
+
+          // ========== WEB CRAWLING: Extract links for discovery ==========
+          try {
+            // Try to get raw HTML for link extraction (content may be markdown from Jina)
+            let htmlContent = content;
+            if (!content.includes("<a ") && !content.includes("href=")) {
+              // Content is likely markdown, try to fetch raw HTML
+              try {
+                htmlContent = await fetchPageDirect(source.url);
+              } catch {
+                // Fall back to using the markdown content for @mentions
+                htmlContent = content;
+              }
+            }
+
+            const extractedLinks = extractLinksFromHtml(htmlContent, source.url);
+            
+            // Queue Instagram links from the page
+            const instagramHandles = extractedLinks.socialLinks
+              .filter(l => l.platform === "instagram" && l.handle)
+              .map(l => l.handle!);
+            
+            if (instagramHandles.length > 0) {
+              const { queued } = await queuePotentialSources(instagramHandles, {
+                sourceId: source.id,
+                method: "website_crawl",
+              });
+              stats.socialLinksExtracted += instagramHandles.length;
+              stats.potentialSourcesQueued += queued;
+              if (queued > 0) {
+                await logger.debug(`Queued ${queued} Instagram handles from ${source.name}`);
+              }
+            }
+
+            // Queue event platform links (Eventbrite, Dice, etc.)
+            if (extractedLinks.eventPlatformLinks.length > 0) {
+              const { queued } = await queueWebsiteSources(
+                extractedLinks.eventPlatformLinks.map(l => ({ url: l.url, platform: l.platform })),
+                { sourceId: source.id, method: "website_crawl" }
+              );
+              stats.eventPlatformLinksExtracted += extractedLinks.eventPlatformLinks.length;
+              stats.websiteSourcesQueued += queued;
+              if (queued > 0) {
+                await logger.debug(`Queued ${queued} event platform links from ${source.name}`);
+              }
+            }
+
+            // Queue organizer/venue links
+            const allOrgVenueLinks = [
+              ...extractedLinks.organizerLinks,
+              ...extractedLinks.venueLinks,
+            ];
+            if (allOrgVenueLinks.length > 0) {
+              const { queued } = await queueWebsiteSources(
+                allOrgVenueLinks.map(l => ({ url: l.url, name: l.name })),
+                { sourceId: source.id, method: "website_crawl" }
+              );
+              stats.websiteSourcesQueued += queued;
+            }
+
+            // Also extract organizer names from text for Instagram search
+            const orgNames = extractOrganizerNames(content);
+            if (orgNames.length > 0) {
+              const { queued } = await queueOrganizerNames(orgNames, {
+                sourceId: source.id,
+                method: "website_crawl",
+              });
+              stats.organizerNamesQueued += queued;
+              if (queued > 0) {
+                await logger.debug(`Queued ${queued} organizer names for Instagram search`);
+              }
+            }
+          } catch (linkError) {
+            // Link extraction is non-critical, continue with event extraction
+            await logger.debug(`Link extraction failed for ${source.name}: ${linkError instanceof Error ? linkError.message : String(linkError)}`);
+          }
+          // ========== END WEB CRAWLING ==========
 
           // Extract events using LLM
           const events = await extractEventsFromContent(content, source.name, source.url);
@@ -684,6 +778,11 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
         "Hashtags Extracted": stats.hashtagsExtracted,
         "Potential Sources Queued": stats.potentialSourcesQueued,
         "Collab Users Found": stats.collabUsersExtracted,
+        // Web crawling stats
+        "Social Links Found": stats.socialLinksExtracted,
+        "Event Platform Links": stats.eventPlatformLinksExtracted,
+        "Website Sources Queued": stats.websiteSourcesQueued,
+        "Organizer Names Queued": stats.organizerNamesQueued,
       },
       errors,
     };

@@ -9,3 +9,10 @@ export { fetchRAEvents, isRAUrl } from "./ra-fetcher";
 export { uploadEventImage, isStoredInBucket } from "./image-storage";
 export { withRetry, isRetryableError, SOURCE_RETRY_OPTIONS, type RetryOptions } from "./retry";
 export { scrapeInstagramProfile, isApifyConfigured, type InstagramPost } from "./apify";
+export {
+  extractLinksFromHtml,
+  extractOrganizerNames,
+  extractVenueNames,
+  detectEventEmbeds,
+  type ExtractedLinks,
+} from "./link-extractor";
