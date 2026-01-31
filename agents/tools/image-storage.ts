@@ -18,15 +18,31 @@ interface DownloadedImage {
  */
 async function downloadImage(url: string): Promise<DownloadedImage | null> {
   try {
-    const response = await fetch(url, {
-      headers: {
-        // Use Instagram-like headers to avoid blocks
+    // Determine appropriate headers based on domain
+    const domain = new URL(url).hostname;
+    let headers: Record<string, string>;
+    
+    if (domain.includes("instagram") || domain.includes("cdninstagram") || domain.includes("fbcdn")) {
+      // Instagram/Facebook CDN
+      headers = {
         "User-Agent": "Instagram 219.0.0.12.117 Android",
         Accept: "image/*,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         Referer: "https://www.instagram.com/",
-      },
-      signal: AbortSignal.timeout(30000), // 30s timeout for Instagram CDN
+      };
+    } else {
+      // Standard browser headers for other sites
+      headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+        Referer: `https://${domain}/`,
+      };
+    }
+    
+    const response = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(30000), // 30s timeout
     });
 
     if (!response.ok) {
