@@ -241,7 +241,12 @@ function isTrustedListingSource(url: string): boolean {
   }
 }
 
-export async function runExtractionAgent(): Promise<ExtractionStats> {
+export async function runExtractionAgent(
+  options: {
+    isInstagramOnly?: boolean;
+    maxSourcesPerRun?: number;
+  } = {}
+): Promise<ExtractionStats> {
   const startTime = Date.now();
   const errors: string[] = [];
   const logger = new AgentLogger('extraction');
@@ -291,7 +296,26 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
     await logger.info(`Max events per run: ${config.maxEventsPerRun}`);
 
     // Get event sources from database
-    const sources = await getEventSources();
+    let sources = await getEventSources();
+    await logger.info(`Found ${sources.length} total event sources`);
+
+    if (options.isInstagramOnly) {
+      sources = sources.filter(s => s.type === 'instagram' && s.enabled !== false);
+      // Sort by last_scraped_at (null first, then oldest)
+      sources.sort((a, b) => {
+        if (!a.last_scraped_at && !b.last_scraped_at) return 0;
+        if (!a.last_scraped_at) return -1;
+        if (!b.last_scraped_at) return 1;
+        return new Date(a.last_scraped_at).getTime() - new Date(b.last_scraped_at).getTime();
+      });
+      await logger.info(`Filtered to ${sources.length} enabled Instagram sources`);
+    }
+
+    if (options.maxSourcesPerRun && sources.length > options.maxSourcesPerRun) {
+      sources = sources.slice(0, options.maxSourcesPerRun);
+      await logger.info(`Limited to ${sources.length} sources by maxSourcesPerRun option`);
+    }
+
     await logger.info(`Found ${sources.length} event sources`);
 
     if (sources.length === 0) {
@@ -300,7 +324,6 @@ export async function runExtractionAgent(): Promise<ExtractionStats> {
       return stats;
     }
 
-    // Collect all events from all sources (with in-run deduplication)
     const allEvents: ProcessedEvent[] = [];
     const seenInRun: SeenEvent[] = []; // Track events seen in this run for fuzzy matching
 
