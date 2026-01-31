@@ -75,6 +75,7 @@ function needsHeadless(url: string): boolean {
 
 /**
  * Extract og:image or other image URL from HTML content
+ * Falls back to CSS background-image and content images if no meta tags found
  */
 function extractImageFromHtml(html: string): string | null {
   // Try og:image first (most reliable)
@@ -100,6 +101,35 @@ function extractImageFromHtml(html: string): string | null {
     /<meta[^>]*itemprop=["']image["'][^>]*content=["']([^"']+)["']/i
   );
   if (itemPropMatch?.[1]) return itemPropMatch[1];
+
+  // Try CSS background-image (used by teatro.it and others)
+  // Look for main-image, hero, poster patterns in background URLs
+  const bgImagePattern = /background(?:-image)?\s*:\s*url\(['"]?(https?:\/\/[^'")\s]+(?:main-image|hero|poster|cover|featured)[^'")\s]*)['"]\)/gi;
+  const bgMatch = bgImagePattern.exec(html);
+  if (bgMatch?.[1]) return bgMatch[1];
+
+  // Try any background-image with common image extensions
+  const anyBgPattern = /background(?:-image)?\s*:\s*url\(['"]?(https?:\/\/[^'")\s]+\.(?:jpg|jpeg|png|webp)[^'")\s]*)['"]\)/gi;
+  const anyBgMatch = anyBgPattern.exec(html);
+  if (anyBgMatch?.[1]) return anyBgMatch[1];
+
+  // Try img tags with hero/main/poster classes
+  const heroImgMatch = html.match(
+    /<img[^>]*class=["'][^"']*(?:hero|main|poster|cover|featured|event-image)[^"']*["'][^>]*src=["']([^"']+)["']/i
+  );
+  if (heroImgMatch?.[1] && heroImgMatch[1].startsWith('http')) return heroImgMatch[1];
+
+  // Try img with src first (alternate attribute order)
+  const heroImgAltMatch = html.match(
+    /<img[^>]*src=["']([^"']+)["'][^>]*class=["'][^"']*(?:hero|main|poster|cover|featured|event-image)[^"']*["']/i
+  );
+  if (heroImgAltMatch?.[1] && heroImgAltMatch[1].startsWith('http')) return heroImgAltMatch[1];
+
+  // Try data-src for lazy-loaded images
+  const dataSrcMatch = html.match(
+    /<img[^>]*data-src=["']([^"']+)["'][^>]*class=["'][^"']*(?:hero|main|poster|cover|featured)[^"']*["']/i
+  );
+  if (dataSrcMatch?.[1] && dataSrcMatch[1].startsWith('http')) return dataSrcMatch[1];
 
   return null;
 }
