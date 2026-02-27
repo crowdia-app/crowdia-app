@@ -22,6 +22,8 @@ const MAPPING = {
   'person.fill': 'person',
   'gearshape.fill': 'settings',
   'map': 'map',
+  'message.fill': 'chat',
+  'text.alignleft': 'article',
 } as IconMapping;
 
 /**
