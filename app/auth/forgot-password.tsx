@@ -35,7 +35,7 @@ export default function ForgotPasswordScreen() {
       // Use web URL for redirect - works for both web and native (via universal links)
       const redirectUrl = Platform.OS === 'web'
         ? `${window.location.origin}/auth/reset-password`
-        : 'https://crowdia.expo.app/auth/reset-password';
+        : 'https://app.crowdia.ai/auth/reset-password';
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
