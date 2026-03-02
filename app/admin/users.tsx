@@ -119,18 +119,20 @@ export default function UsersScreen() {
   }
 
   const columns: Column[] = [
-    { key: 'username', label: 'Username' },
-    { key: 'display_name', label: 'Display Name' },
-    { key: 'points', label: 'Points' },
-    { key: 'check_ins_count', label: 'Check-ins' },
+    { key: 'username', label: 'Username', minWidth: 140 },
+    { key: 'display_name', label: 'Display Name', minWidth: 160 },
+    { key: 'points', label: 'Points', width: 80 },
+    { key: 'check_ins_count', label: 'Check-ins', width: 90 },
     {
       key: 'is_admin',
       label: 'Admin',
+      width: 80,
       render: (item: any) => <BooleanBadge value={!!item.is_admin} />,
     },
     {
       key: 'created_at',
       label: 'Created',
+      width: 120,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 13 }} numberOfLines={1}>
           {item.created_at ? new Date(item.created_at).toLocaleDateString() : '-'}
@@ -146,6 +148,7 @@ export default function UsersScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={670}
         searchPlaceholder="Search users..."
         search={search}
         onSearchChange={(text) => { setSearch(text); setPage(1); }}

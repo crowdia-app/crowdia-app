@@ -119,10 +119,10 @@ export default function CategoriesScreen() {
   }
 
   const columns: Column[] = [
-    { key: 'name', label: 'Name' },
-    { key: 'slug', label: 'Slug' },
-    { key: 'icon', label: 'Icon' },
-    { key: 'sort_order', label: 'Sort Order' },
+    { key: 'name', label: 'Name', minWidth: 160 },
+    { key: 'slug', label: 'Slug', minWidth: 160 },
+    { key: 'icon', label: 'Icon', minWidth: 120 },
+    { key: 'sort_order', label: 'Sort Order', width: 100 },
   ];
 
   return (
@@ -132,6 +132,7 @@ export default function CategoriesScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={540}
         searchPlaceholder="Search categories..."
         search={search}
         onSearchChange={(text) => { setSearch(text); setPage(1); }}

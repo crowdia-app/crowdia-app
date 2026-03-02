@@ -130,7 +130,7 @@ export default function SourcesScreen() {
     {
       key: 'url',
       label: 'URL',
-      minWidth: 250,
+      minWidth: 300,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 14 }} numberOfLines={1}>
           {item.url ?? '-'}
@@ -140,7 +140,7 @@ export default function SourcesScreen() {
     {
       key: 'type',
       label: 'Type',
-      width: 100,
+      width: 110,
       render: (item: any) => {
         const c = TYPE_COLORS[item.type] || TYPE_COLORS.other;
         return <StatusBadge status={item.type ?? '-'} color={c.color} bgColor={c.bgColor} />;
@@ -149,13 +149,13 @@ export default function SourcesScreen() {
     {
       key: 'enabled',
       label: 'Enabled',
-      width: 70,
+      width: 80,
       render: (item: any) => <BooleanBadge value={!!item.enabled} />,
     },
     {
       key: 'reliability_score',
       label: 'Reliability',
-      width: 80,
+      width: 100,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 14 }}>
           {item.reliability_score ?? '-'}
@@ -165,9 +165,9 @@ export default function SourcesScreen() {
     {
       key: 'last_scraped_at',
       label: 'Last Scraped',
-      width: 110,
+      width: 130,
       render: (item: any) => (
-        <Text style={{ color: colors.subtext, fontSize: 12 }}>
+        <Text style={{ color: colors.subtext, fontSize: 13 }}>
           {item.last_scraped_at ? new Date(item.last_scraped_at).toLocaleDateString() : '-'}
         </Text>
       ),
@@ -244,7 +244,7 @@ export default function SourcesScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
-        minTableWidth={700}
+        minTableWidth={820}
         searchPlaceholder="Search URL or handle..."
         search={search}
         onSearchChange={(text) => {

@@ -118,28 +118,31 @@ export default function BadgesScreen() {
   }
 
   const columns: Column[] = [
-    { key: 'name', label: 'Name' },
+    { key: 'name', label: 'Name', minWidth: 160 },
     {
       key: 'description',
       label: 'Description',
+      minWidth: 250,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 13 }} numberOfLines={1}>
-          {item.description ? (item.description.length > 40 ? item.description.slice(0, 40) + '...' : item.description) : '-'}
+          {item.description ?? '-'}
         </Text>
       ),
     },
     {
       key: 'icon_url',
       label: 'Icon URL',
+      minWidth: 250,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 13 }} numberOfLines={1}>
-          {item.icon_url ? (item.icon_url.length > 40 ? item.icon_url.slice(0, 40) + '...' : item.icon_url) : '-'}
+          {item.icon_url ?? '-'}
         </Text>
       ),
     },
     {
       key: 'created_at',
       label: 'Created',
+      width: 120,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 13 }} numberOfLines={1}>
           {item.created_at ? new Date(item.created_at).toLocaleDateString() : '-'}
@@ -155,6 +158,7 @@ export default function BadgesScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={780}
         searchPlaceholder="Search badges..."
         search={search}
         onSearchChange={(text) => { setSearch(text); setPage(1); }}

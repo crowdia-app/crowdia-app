@@ -109,19 +109,20 @@ export default function EventsScreen() {
     {
       key: 'title',
       label: 'Title',
+      minWidth: 200,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 14 }} numberOfLines={1}>
-          {item.title?.length > 30 ? item.title.slice(0, 30) + '...' : item.title ?? '-'}
+          {item.title ?? '-'}
         </Text>
       ),
     },
     {
       key: 'organizer',
       label: 'Organizer',
-      width: 110,
+      minWidth: 160,
       sortable: false,
       render: (item: any) => (
-        <Text style={{ color: colors.subtext, fontSize: 12 }} numberOfLines={1}>
+        <Text style={{ color: colors.subtext, fontSize: 13 }} numberOfLines={1}>
           {item.organizer?.organization_name ?? '-'}
         </Text>
       ),
@@ -129,10 +130,10 @@ export default function EventsScreen() {
     {
       key: 'category',
       label: 'Category',
-      width: 90,
+      width: 120,
       sortable: false,
       render: (item: any) => (
-        <Text style={{ color: colors.subtext, fontSize: 12 }} numberOfLines={1}>
+        <Text style={{ color: colors.subtext, fontSize: 13 }} numberOfLines={1}>
           {item.category?.name ?? '-'}
         </Text>
       ),
@@ -140,9 +141,9 @@ export default function EventsScreen() {
     {
       key: 'event_start_time',
       label: 'Date',
-      width: 100,
+      width: 120,
       render: (item: any) => (
-        <Text style={{ color: colors.subtext, fontSize: 12 }}>
+        <Text style={{ color: colors.subtext, fontSize: 13 }}>
           {item.event_start_time ? new Date(item.event_start_time).toLocaleDateString() : '-'}
         </Text>
       ),
@@ -150,13 +151,13 @@ export default function EventsScreen() {
     {
       key: 'is_published',
       label: 'Published',
-      width: 80,
+      width: 90,
       render: (item: any) => <BooleanBadge value={!!item.is_published} />,
     },
     {
       key: 'is_featured',
       label: 'Featured',
-      width: 80,
+      width: 90,
       render: (item: any) => <BooleanBadge value={!!item.is_featured} />,
     },
   ];
@@ -228,6 +229,7 @@ export default function EventsScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={780}
         searchPlaceholder="Search events..."
         search={search}
         onSearchChange={(text) => {

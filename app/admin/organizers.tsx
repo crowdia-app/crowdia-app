@@ -14,21 +14,21 @@ const PAGE_SIZE = 20;
 const SEARCH_COLUMNS = ['organization_name', 'instagram_handle', 'email'];
 
 const columns: Column[] = [
-  { key: 'organization_name', label: 'Organization Name', sortable: true },
+  { key: 'organization_name', label: 'Organization Name', sortable: true, minWidth: 200 },
   {
     key: 'is_verified',
     label: 'Verified',
     sortable: true,
-    width: 80,
+    width: 90,
     render: (item: any) => <BooleanBadge value={!!item.is_verified} />,
   },
-  { key: 'instagram_handle', label: 'Instagram', sortable: true },
-  { key: 'email', label: 'Email', sortable: true },
+  { key: 'instagram_handle', label: 'Instagram', sortable: true, minWidth: 150 },
+  { key: 'email', label: 'Email', sortable: true, minWidth: 200 },
   {
     key: 'created_at',
     label: 'Created',
     sortable: true,
-    width: 100,
+    width: 120,
     render: (item: any) =>
       item.created_at ? (
         <Text style={{ fontSize: 13 }}>{new Date(item.created_at).toLocaleDateString()}</Text>
@@ -176,6 +176,7 @@ export default function OrganizersScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={760}
         searchPlaceholder="Search organizers..."
         search={search}
         onSearchChange={handleSearchChange}

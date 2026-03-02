@@ -109,6 +109,7 @@ export default function PotentialSourcesScreen() {
     {
       key: 'handle',
       label: 'Handle',
+      minWidth: 180,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 14 }} numberOfLines={1}>
           {item.handle ?? '-'}
@@ -118,7 +119,7 @@ export default function PotentialSourcesScreen() {
     {
       key: 'platform',
       label: 'Platform',
-      width: 100,
+      width: 110,
       render: (item: any) => {
         const c = PLATFORM_COLORS[item.platform] || PLATFORM_COLORS.other;
         return <StatusBadge status={item.platform ?? '-'} color={c.color} bgColor={c.bgColor} />;
@@ -127,7 +128,7 @@ export default function PotentialSourcesScreen() {
     {
       key: 'validation_status',
       label: 'Status',
-      width: 90,
+      width: 100,
       render: (item: any) => {
         const c = STATUS_COLORS[item.validation_status] || STATUS_COLORS.pending;
         return <StatusBadge status={item.validation_status ?? '-'} color={c.color} bgColor={c.bgColor} />;
@@ -136,7 +137,7 @@ export default function PotentialSourcesScreen() {
     {
       key: 'occurrence_count',
       label: 'Occurrences',
-      width: 80,
+      width: 100,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 14 }}>
           {item.occurrence_count ?? 0}
@@ -146,7 +147,7 @@ export default function PotentialSourcesScreen() {
     {
       key: 'validation_score',
       label: 'Score',
-      width: 60,
+      width: 80,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 14 }}>
           {item.validation_score ?? '-'}
@@ -156,9 +157,9 @@ export default function PotentialSourcesScreen() {
     {
       key: 'last_seen_at',
       label: 'Last Seen',
-      width: 100,
+      width: 120,
       render: (item: any) => (
-        <Text style={{ color: colors.subtext, fontSize: 12 }}>
+        <Text style={{ color: colors.subtext, fontSize: 13 }}>
           {item.last_seen_at ? new Date(item.last_seen_at).toLocaleDateString() : '-'}
         </Text>
       ),
@@ -244,6 +245,7 @@ export default function PotentialSourcesScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={690}
         searchPlaceholder="Search handle..."
         search={search}
         onSearchChange={(text) => {

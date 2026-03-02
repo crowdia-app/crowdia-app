@@ -12,29 +12,25 @@ import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModa
 const PAGE_SIZE = 20;
 const SEARCH_COLUMNS = ['name', 'address'];
 
-const truncate = (str: string | null, len: number) => {
-  if (!str) return '-';
-  return str.length > len ? str.slice(0, len) + '...' : str;
-};
-
 const columns: Column[] = [
-  { key: 'name', label: 'Name', sortable: true },
+  { key: 'name', label: 'Name', sortable: true, minWidth: 180 },
   {
     key: 'address',
     label: 'Address',
     sortable: true,
+    minWidth: 250,
     render: (item: any) => (
       <Text style={{ fontSize: 13 }} numberOfLines={1}>
-        {truncate(item.address, 30)}
+        {item.address ?? '-'}
       </Text>
     ),
   },
-  { key: 'venue_type', label: 'Venue Type', sortable: true, width: 100 },
+  { key: 'venue_type', label: 'Venue Type', sortable: true, width: 120 },
   {
     key: 'lat',
     label: 'Lat/Lng',
     sortable: false,
-    width: 120,
+    width: 150,
     render: (item: any) => (
       <Text style={{ fontSize: 13 }} numberOfLines={1}>
         {item.lat != null && item.lng != null
@@ -47,7 +43,7 @@ const columns: Column[] = [
     key: 'created_at',
     label: 'Created',
     sortable: true,
-    width: 100,
+    width: 120,
     render: (item: any) =>
       item.created_at ? (
         <Text style={{ fontSize: 13 }}>{new Date(item.created_at).toLocaleDateString()}</Text>
@@ -168,6 +164,7 @@ export default function LocationsScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={820}
         searchPlaceholder="Search locations..."
         search={search}
         onSearchChange={handleSearchChange}
