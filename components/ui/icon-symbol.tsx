@@ -22,8 +22,19 @@ const MAPPING = {
   'person.fill': 'person',
   'gearshape.fill': 'settings',
   'map': 'map',
+  'map.fill': 'map',
   'message.fill': 'chat',
   'text.alignleft': 'article',
+  'calendar': 'event',
+  'building.2.fill': 'business',
+  'tag.fill': 'label',
+  'star.fill': 'star',
+  'magnifyingglass.circle.fill': 'manage-search',
+  'cpu': 'memory',
+  'antenna.radiowaves.left.and.right': 'rss-feed',
+  'wand.and.stars': 'auto-fix-high',
+  'bolt.fill': 'bolt',
+  'doc.on.doc': 'content-copy',
 } as IconMapping;
 
 /**
