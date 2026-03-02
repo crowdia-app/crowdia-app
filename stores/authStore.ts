@@ -24,6 +24,15 @@ interface AuthState {
   clearError: () => void;
 }
 
+/** Extract error message from any thrown value */
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as any).message);
+  }
+  if (typeof error === 'string') return error;
+  return String(error);
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   userProfile: null,
@@ -65,10 +74,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ isLoading: false });
       }
     } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Failed to initialize auth',
-        isLoading: false,
-      });
+      // Init errors should never block the login page
+      console.error('Auth init error:', error);
+      set({ isLoading: false });
     }
   },
 
@@ -99,7 +107,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Sign up failed',
+        error: getErrorMessage(error),
         isSigningUp: false,
       });
       throw error;
@@ -139,7 +147,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Login failed',
+        error: getErrorMessage(error),
         isLoggingIn: false,
       });
       throw error;
@@ -158,7 +166,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Logout failed',
+        error: getErrorMessage(error),
         isLoading: false,
       });
       throw error;
