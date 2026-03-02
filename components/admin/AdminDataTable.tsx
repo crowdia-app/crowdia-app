@@ -18,6 +18,7 @@ export interface Column<T = any> {
   label: string;
   sortable?: boolean;
   width?: number;
+  minWidth?: number;
   render?: (item: T) => React.ReactNode;
 }
 
@@ -49,6 +50,7 @@ interface Props<T = any> {
   onFilterChange?: (key: string, value: any) => void;
   onPressCreate?: () => void;
   createLabel?: string;
+  minTableWidth?: number;
 }
 
 export function AdminDataTable<T extends { id?: string }>({
@@ -73,6 +75,7 @@ export function AdminDataTable<T extends { id?: string }>({
   onFilterChange,
   onPressCreate,
   createLabel = 'Create',
+  minTableWidth,
 }: Props<T>) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -204,66 +207,70 @@ export function AdminDataTable<T extends { id?: string }>({
         </View>
       )}
 
-      {/* Table Header */}
+      {/* Horizontally scrollable table */}
       {!isLoading && (
-        <View style={[styles.tableHeader, { backgroundColor: colors.card, borderBottomColor: colors.divider }]}>
-          {columns.map((col) => (
-            <TouchableOpacity
-              key={col.key}
-              style={[styles.headerCell, col.width ? { width: col.width } : { flex: 1 }]}
-              onPress={() => col.sortable !== false && onSort(col.key)}
-              disabled={col.sortable === false}
-            >
-              <Text style={[styles.headerText, { color: colors.subtext }]} numberOfLines={1}>
-                {col.label}
-              </Text>
-              {sortBy === col.key && (
-                <IconSymbol
-                  name={sortOrder === 'asc' ? 'chevron.up' : 'chevron.down'}
-                  size={12}
-                  color={Colors.magenta[500]}
-                />
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Table Rows */}
-      {!isLoading &&
-        data.map((item, idx) => (
-          <TouchableOpacity
-            key={(item as any).id || idx}
-            style={[
-              styles.tableRow,
-              {
-                backgroundColor: idx % 2 === 0 ? colors.background : colors.card,
-                borderBottomColor: colors.divider,
-              },
-            ]}
-            onPress={() => onPressRow?.(item)}
-            disabled={!onPressRow}
-          >
-            {columns.map((col) => (
-              <View key={col.key} style={[styles.cell, col.width ? { width: col.width } : { flex: 1 }]}>
-                {col.render ? (
-                  col.render(item)
-                ) : (
-                  <Text style={[styles.cellText, { color: colors.text }]} numberOfLines={1}>
-                    {String(getValue(item, col.key) ?? '-')}
+        <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+          <View style={minTableWidth ? { minWidth: minTableWidth } : { minWidth: '100%' as any }}>
+            {/* Table Header */}
+            <View style={[styles.tableHeader, { backgroundColor: colors.card, borderBottomColor: colors.divider }]}>
+              {columns.map((col) => (
+                <TouchableOpacity
+                  key={col.key}
+                  style={[styles.headerCell, col.width ? { width: col.width } : { flex: 1 }, col.minWidth ? { minWidth: col.minWidth } : undefined]}
+                  onPress={() => col.sortable !== false && onSort(col.key)}
+                  disabled={col.sortable === false}
+                >
+                  <Text style={[styles.headerText, { color: colors.subtext }]} numberOfLines={1}>
+                    {col.label}
                   </Text>
-                )}
-              </View>
-            ))}
-          </TouchableOpacity>
-        ))}
+                  {sortBy === col.key && (
+                    <IconSymbol
+                      name={sortOrder === 'asc' ? 'chevron.up' : 'chevron.down'}
+                      size={12}
+                      color={Colors.magenta[500]}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
 
-      {/* Empty State */}
-      {!isLoading && data.length === 0 && (
-        <View style={styles.emptyState}>
-          <IconSymbol name="tray" size={40} color={colors.textMuted} />
-          <Text style={[styles.emptyText, { color: colors.textMuted }]}>No results found</Text>
-        </View>
+            {/* Table Rows */}
+            {data.map((item, idx) => (
+              <TouchableOpacity
+                key={(item as any).id || idx}
+                style={[
+                  styles.tableRow,
+                  {
+                    backgroundColor: idx % 2 === 0 ? colors.background : colors.card,
+                    borderBottomColor: colors.divider,
+                  },
+                ]}
+                onPress={() => onPressRow?.(item)}
+                disabled={!onPressRow}
+              >
+                {columns.map((col) => (
+                  <View key={col.key} style={[styles.cell, col.width ? { width: col.width } : { flex: 1 }, col.minWidth ? { minWidth: col.minWidth } : undefined]}>
+                    {col.render ? (
+                      col.render(item)
+                    ) : (
+                      <Text style={[styles.cellText, { color: colors.text }]} numberOfLines={1}>
+                        {String(getValue(item, col.key) ?? '-')}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </TouchableOpacity>
+            ))}
+
+            {/* Empty State */}
+            {data.length === 0 && (
+              <View style={styles.emptyState}>
+                <IconSymbol name="tray" size={40} color={colors.textMuted} />
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>No results found</Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
       )}
 
       {/* Pagination */}

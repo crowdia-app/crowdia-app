@@ -130,9 +130,10 @@ export default function SourcesScreen() {
     {
       key: 'url',
       label: 'URL',
+      minWidth: 250,
       render: (item: any) => (
         <Text style={{ color: colors.text, fontSize: 14 }} numberOfLines={1}>
-          {item.url?.length > 40 ? item.url.slice(0, 40) + '...' : item.url ?? '-'}
+          {item.url ?? '-'}
         </Text>
       ),
     },
@@ -243,6 +244,7 @@ export default function SourcesScreen() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        minTableWidth={700}
         searchPlaceholder="Search URL or handle..."
         search={search}
         onSearchChange={(text) => {
