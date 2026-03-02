@@ -54,9 +54,11 @@ export class AuthService {
       error,
     } = await supabase.auth.getUser();
 
-    // "Auth session missing" is expected when not logged in - not an error
-    if (error && error.message !== 'Auth session missing!') {
-      throw error;
+    if (error) {
+      // Any auth error during init means no valid session -- clear stale state and continue
+      console.warn('getCurrentUser error (clearing session):', error.message);
+      await supabase.auth.signOut().catch(() => {});
+      return null;
     }
     return user;
   }
