@@ -35,7 +35,7 @@ export default function EventDetailScreen() {
     const data = await fetchEntityById(
       'events',
       id,
-      '*, category:categories(name), location:locations(name, address), organizer:organizers(organization_name)'
+      '*, category:categories(name), location:locations(name, address), organizer:organizers!events_organizer_id_fkey(organization_name)'
     );
     setEvent(data);
     setIsLoading(false);

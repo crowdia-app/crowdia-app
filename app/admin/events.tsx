@@ -74,7 +74,7 @@ export default function EventsScreen() {
         sortOrder,
         page,
         pageSize: 20,
-        select: '*, category:categories(name), location:locations(name), organizer:organizers(organization_name)',
+        select: '*, category:categories(name), location:locations(name), organizer:organizers!events_organizer_id_fkey(organization_name)',
       });
 
       setData(result.data);
