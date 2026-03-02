@@ -1,10 +1,25 @@
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useState, useRef } from 'react';
+import React from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { createAuthStyles } from '@/styles/auth.styles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
+
+// On web, wrap form fields in a <form> so browsers recognize it for autofill
+function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
+  if (Platform.OS !== 'web') return <>{children}</>;
+  return (
+    <form
+      onSubmit={(e: any) => { e.preventDefault(); onSubmit(); }}
+      style={{ display: 'contents' }}
+      autoComplete="on"
+    >
+      {children}
+    </form>
+  );
+}
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -70,78 +85,83 @@ export default function SignupScreen() {
 
             {displayError && <Text style={styles.errorText}>{displayError}</Text>}
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="your@email.com"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                editable={!isSigningUp}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-                textContentType="emailAddress"
-                returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
-                blurOnSubmit={false}
-              />
-            </View>
+            <FormWrapper onSubmit={handleSignup}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput
+                  nativeID="email"
+                  style={styles.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor="#999"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!isSigningUp}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  blurOnSubmit={false}
+                />
+              </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <TextInput
-                ref={passwordRef}
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#999"
-                value={password}
-                onChangeText={setPassword}
-                editable={!isSigningUp}
-                secureTextEntry
-                autoComplete="password-new"
-                textContentType="newPassword"
-                returnKeyType="next"
-                onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-                blurOnSubmit={false}
-              />
-              <Text style={styles.helpText}>Must be at least 6 characters</Text>
-            </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <TextInput
+                  nativeID="new-password"
+                  ref={passwordRef}
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor="#999"
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!isSigningUp}
+                  secureTextEntry
+                  autoComplete="password-new"
+                  textContentType="newPassword"
+                  returnKeyType="next"
+                  onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+                  blurOnSubmit={false}
+                />
+                <Text style={styles.helpText}>Must be at least 6 characters</Text>
+              </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Confirm Password</Text>
-              <TextInput
-                ref={confirmPasswordRef}
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#999"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                editable={!isSigningUp}
-                secureTextEntry
-                autoComplete="password-new"
-                textContentType="newPassword"
-                returnKeyType="go"
-                onSubmitEditing={handleSignup}
-              />
-            </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Confirm Password</Text>
+                <TextInput
+                  nativeID="confirm-password"
+                  ref={confirmPasswordRef}
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor="#999"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  editable={!isSigningUp}
+                  secureTextEntry
+                  autoComplete="password-new"
+                  textContentType="newPassword"
+                  returnKeyType="go"
+                  onSubmitEditing={handleSignup}
+                />
+              </View>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.button,
-                isSigningUp && styles.buttonDisabled,
-                pressed && { opacity: 0.8 },
-              ]}
-              onPress={handleSignup}
-              disabled={isSigningUp}
-            >
-              {isSigningUp ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
-              )}
-            </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.button,
+                  isSigningUp && styles.buttonDisabled,
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={handleSignup}
+                disabled={isSigningUp}
+              >
+                {isSigningUp ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Create Account</Text>
+                )}
+              </Pressable>
+            </FormWrapper>
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
