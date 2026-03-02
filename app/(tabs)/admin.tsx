@@ -115,45 +115,36 @@ export default function AdminDashboard() {
         />
       </View>
 
-      {/* Quick Actions */}
+      {/* Data Management */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
 
-        <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: colors.card }]}
-          onPress={() => router.push('/admin/agents')}
-        >
-          <View style={styles.actionCardIcon}>
-            <IconSymbol name="cpu" size={24} color={Colors.magenta[500]} />
-          </View>
-          <View style={styles.actionCardContent}>
-            <Text style={[styles.actionCardTitle, { color: colors.text }]}>AI Agents</Text>
-            <Text style={[styles.actionCardSubtitle, { color: colors.subtext }]}>
-              View agent runs and logs
-            </Text>
-          </View>
-          <IconSymbol name="chevron.right" size={20} color={colors.subtext} />
-        </TouchableOpacity>
-
-        {stats && stats.unpublishedEvents > 0 && (
+        {[
+          { route: '/admin/events', icon: 'calendar', label: 'Events', sub: `${stats?.totalEvents || 0} total, ${stats?.publishedEvents || 0} published` },
+          { route: '/admin/sources', icon: 'antenna.radiowaves.left.and.right', label: 'Sources', sub: 'Event sources and discovery feeds' },
+          { route: '/admin/organizers', icon: 'building.2.fill', label: 'Organizers', sub: `${stats?.totalOrganizers || 0} total, ${stats?.verifiedOrganizers || 0} verified` },
+          { route: '/admin/locations', icon: 'map.fill', label: 'Locations', sub: `${stats?.totalLocations || 0} venues` },
+          { route: '/admin/users', icon: 'person.fill', label: 'Users', sub: `${stats?.totalUsers || 0} registered` },
+          { route: '/admin/categories', icon: 'tag.fill', label: 'Categories', sub: 'Event categories and tags' },
+          { route: '/admin/badges', icon: 'star.fill', label: 'Badges', sub: 'Achievement badges' },
+          { route: '/admin/potential-sources', icon: 'magnifyingglass.circle.fill', label: 'Potential Sources', sub: 'Discovery queue' },
+          { route: '/admin/agents', icon: 'cpu', label: 'AI Agents', sub: 'Agent runs and logs' },
+        ].map((item) => (
           <TouchableOpacity
+            key={item.route}
             style={[styles.actionCard, { backgroundColor: colors.card }]}
-            onPress={() => {
-              // TODO: Navigate to unpublished events
-            }}
+            onPress={() => router.push(item.route as any)}
           >
             <View style={styles.actionCardIcon}>
-              <IconSymbol name="exclamationmark.triangle.fill" size={24} color={Colors.yellow[500]} />
+              <IconSymbol name={item.icon} size={24} color={Colors.magenta[500]} />
             </View>
             <View style={styles.actionCardContent}>
-              <Text style={[styles.actionCardTitle, { color: colors.text }]}>Pending Events</Text>
-              <Text style={[styles.actionCardSubtitle, { color: colors.subtext }]}>
-                {stats.unpublishedEvents} events awaiting review
-              </Text>
+              <Text style={[styles.actionCardTitle, { color: colors.text }]}>{item.label}</Text>
+              <Text style={[styles.actionCardSubtitle, { color: colors.subtext }]}>{item.sub}</Text>
             </View>
             <IconSymbol name="chevron.right" size={20} color={colors.subtext} />
           </TouchableOpacity>
-        )}
+        ))}
       </View>
 
       {/* Run Agents */}
