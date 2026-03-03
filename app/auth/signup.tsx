@@ -146,6 +146,16 @@ export default function SignupScreen() {
                 />
               </View>
 
+              <Text style={styles.termsText}>
+                By creating an account you agree to our{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => router.push('/legal/terms')}
+                >
+                  Terms of Service
+                </Text>
+              </Text>
+
               <Pressable
                 style={({ pressed }) => [
                   styles.button,

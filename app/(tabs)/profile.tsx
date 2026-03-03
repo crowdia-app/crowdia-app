@@ -286,6 +286,27 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Legal Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+            LEGAL
+          </Text>
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <Pressable
+              style={({ pressed }) => [styles.cardRow, pressed && { opacity: 0.6 }]}
+              onPress={() => router.push('/legal/terms')}
+            >
+              <Ionicons name="document-text-outline" size={20} color={colors.textSecondary} />
+              <View style={styles.cardRowContent}>
+                <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                  Terms of Service
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        </View>
+
         {/* Logout Button */}
         <Pressable
           style={[styles.logoutButton, { backgroundColor: colors.card }]}

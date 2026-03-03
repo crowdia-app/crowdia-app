@@ -168,6 +168,17 @@ export const createAuthStyles = (isDark: boolean) => {
       marginTop: Spacing.md,
       lineHeight: 20,
     },
+    termsText: {
+      fontSize: Typography.xs,
+      color: colors.subtext,
+      textAlign: 'center',
+      marginTop: Spacing.md,
+      lineHeight: 18,
+    },
+    termsLink: {
+      color: Colors.magenta[500],
+      fontWeight: '600',
+    },
   });
 };
 
