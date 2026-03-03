@@ -10,12 +10,28 @@ const ITEMS_PER_PAGE = 20;
  * Used by the list view.
  */
 export function useFilteredEventsInfinite() {
-  const { debouncedSearch, sortBy, timeFilter, categoryIds, since } =
-    useEventsFilterStore();
+  const {
+    debouncedSearch,
+    sortBy,
+    timeFilter,
+    categoryIds,
+    since,
+    userLocation,
+    customDateRange,
+  } = useEventsFilterStore();
 
   const queryKey = useMemo(
-    () => ['events', debouncedSearch, sortBy, timeFilter, categoryIds, since],
-    [debouncedSearch, sortBy, timeFilter, categoryIds, since]
+    () => [
+      'events',
+      debouncedSearch,
+      sortBy,
+      timeFilter,
+      categoryIds,
+      since,
+      userLocation,
+      customDateRange,
+    ],
+    [debouncedSearch, sortBy, timeFilter, categoryIds, since, userLocation, customDateRange]
   );
 
   const query = useInfiniteQuery({
@@ -29,6 +45,8 @@ export function useFilteredEventsInfinite() {
         limit: ITEMS_PER_PAGE,
         offset: pageParam,
         since,
+        userLocation,
+        customDateRange,
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
@@ -56,12 +74,28 @@ export function useFilteredEventsInfinite() {
  * Used by the map view to show all markers at once.
  */
 export function useFilteredEventsForMap() {
-  const { debouncedSearch, sortBy, timeFilter, categoryIds, since } =
-    useEventsFilterStore();
+  const {
+    debouncedSearch,
+    sortBy,
+    timeFilter,
+    categoryIds,
+    since,
+    userLocation,
+    customDateRange,
+  } = useEventsFilterStore();
 
   const queryKey = useMemo(
-    () => ['events-map', debouncedSearch, sortBy, timeFilter, categoryIds, since],
-    [debouncedSearch, sortBy, timeFilter, categoryIds, since]
+    () => [
+      'events-map',
+      debouncedSearch,
+      sortBy,
+      timeFilter,
+      categoryIds,
+      since,
+      userLocation,
+      customDateRange,
+    ],
+    [debouncedSearch, sortBy, timeFilter, categoryIds, since, userLocation, customDateRange]
   );
 
   const query = useQuery({
@@ -75,6 +109,8 @@ export function useFilteredEventsForMap() {
         limit: 500, // Reasonable upper limit for map markers
         offset: 0,
         since,
+        userLocation,
+        customDateRange,
       }),
     staleTime: 5 * 60 * 1000,
   });

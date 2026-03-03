@@ -1,7 +1,17 @@
 import { create } from 'zustand';
 
 export type SortOption = 'date_asc' | 'date_desc' | 'popular' | 'nearby';
-export type TimeFilter = 'all' | 'today' | 'tomorrow' | 'this_week' | 'this_weekend';
+export type TimeFilter = 'all' | 'today' | 'tomorrow' | 'this_week' | 'this_weekend' | 'custom';
+
+export interface UserLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export interface CustomDateRange {
+  startDate: string; // ISO date string
+  endDate: string;   // ISO date string
+}
 
 interface EventsFilterState {
   searchQuery: string;
@@ -10,6 +20,8 @@ interface EventsFilterState {
   timeFilter: TimeFilter;
   categoryIds: string[];
   since: string;
+  userLocation: UserLocation | null;
+  customDateRange: CustomDateRange | null;
 
   // Actions
   setSearchQuery: (query: string) => void;
@@ -18,6 +30,8 @@ interface EventsFilterState {
   setTimeFilter: (filter: TimeFilter) => void;
   toggleCategory: (id: string) => void;
   setCategoryIds: (ids: string[]) => void;
+  setUserLocation: (location: UserLocation | null) => void;
+  setCustomDateRange: (range: CustomDateRange | null) => void;
   resetFilters: () => void;
   refreshSince: () => void;
 
@@ -34,6 +48,8 @@ export const useEventsFilterStore = create<EventsFilterState>((set, get) => ({
   timeFilter: 'all',
   categoryIds: [],
   since: getInitialSince(),
+  userLocation: null,
+  customDateRange: null,
 
   setSearchQuery: (query: string) => set({ searchQuery: query }),
 
@@ -66,6 +82,12 @@ export const useEventsFilterStore = create<EventsFilterState>((set, get) => ({
   setCategoryIds: (ids: string[]) =>
     set({ categoryIds: ids, since: new Date().toISOString() }),
 
+  setUserLocation: (location: UserLocation | null) =>
+    set({ userLocation: location }),
+
+  setCustomDateRange: (range: CustomDateRange | null) =>
+    set({ customDateRange: range, since: new Date().toISOString() }),
+
   resetFilters: () =>
     set({
       searchQuery: '',
@@ -73,6 +95,7 @@ export const useEventsFilterStore = create<EventsFilterState>((set, get) => ({
       sortBy: 'date_asc',
       timeFilter: 'all',
       categoryIds: [],
+      customDateRange: null,
       since: new Date().toISOString(),
     }),
 
@@ -83,7 +106,8 @@ export const useEventsFilterStore = create<EventsFilterState>((set, get) => ({
     return (
       state.timeFilter !== 'all' ||
       state.sortBy !== 'date_asc' ||
-      state.categoryIds.length > 0
+      state.categoryIds.length > 0 ||
+      state.customDateRange !== null
     );
   },
 }));

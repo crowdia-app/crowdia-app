@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   useColorScheme,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -29,6 +30,7 @@ import {
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
 import type { TimeFilter, SortOption } from '@/stores/eventsFilterStore';
 import { useCategories } from '@/hooks/useCategories';
+import { useUserLocation } from '@/hooks/useUserLocation';
 
 const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'nightlife': 'moon',
@@ -38,14 +40,20 @@ const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'comedy': 'happy',
   'art': 'color-palette',
   'food-wine': 'wine',
+  'food-drink': 'restaurant',
   'tour': 'walk',
   'festival': 'bonfire',
   'workshop': 'construct',
   'cultural': 'library',
   'sports': 'football',
+  'sports-fitness': 'fitness',
   'family': 'people',
   'networking': 'chatbubbles',
   'film': 'film',
+  'music': 'musical-notes',
+  'art-culture': 'color-palette',
+  'education': 'school',
+  'community': 'heart',
   'other': 'ellipse',
 };
 
@@ -55,13 +63,132 @@ const TIME_FILTERS: { value: TimeFilter; label: string }[] = [
   { value: 'tomorrow', label: 'Tomorrow' },
   { value: 'this_week', label: 'This Week' },
   { value: 'this_weekend', label: 'Weekend' },
+  { value: 'custom', label: 'Custom Range' },
 ];
 
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'date_asc', label: 'Soonest First' },
-  { value: 'date_desc', label: 'Latest First' },
-  { value: 'popular', label: 'Most Popular' },
+const SORT_OPTIONS: { value: SortOption; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: 'date_asc', label: 'Soonest First', icon: 'arrow-up' },
+  { value: 'date_desc', label: 'Latest First', icon: 'arrow-down' },
+  { value: 'popular', label: 'Most Popular', icon: 'flame' },
+  { value: 'nearby', label: 'Nearest First', icon: 'location' },
 ];
+
+/** Simple date input for web, numeric text for native */
+function DateInput({
+  label,
+  value,
+  onChange,
+  minDate,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  minDate?: string;
+}) {
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
+
+  // Format display string: "MMM D, YYYY"
+  const displayValue = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : 'Select date';
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={dateInputStyles.container}>
+        <Text style={[dateInputStyles.label, { color: colors.textSecondary }]}>{label}</Text>
+        <View style={[dateInputStyles.field, { backgroundColor: colors.inputBackground }]}>
+          <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
+          <input
+            type="date"
+            value={value}
+            min={minDate}
+            onChange={(e) => onChange(e.target.value)}
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: value ? colors.text : colors.textMuted,
+              fontSize: Typography.sm,
+              fontFamily: 'inherit',
+              marginLeft: Spacing.sm,
+            }}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  // Native: show a pressable that cycles through dates (simplified)
+  // In a production app you'd use @react-native-community/datetimepicker here.
+  // For now we render a read-only display with increment/decrement buttons.
+  return (
+    <View style={dateInputStyles.container}>
+      <Text style={[dateInputStyles.label, { color: colors.textSecondary }]}>{label}</Text>
+      <View style={[dateInputStyles.field, { backgroundColor: colors.inputBackground }]}>
+        <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
+        <Pressable
+          onPress={() => {
+            const current = value ? new Date(value + 'T00:00:00') : new Date();
+            current.setDate(current.getDate() - 1);
+            if (!minDate || current.toISOString().slice(0, 10) >= minDate) {
+              onChange(current.toISOString().slice(0, 10));
+            }
+          }}
+          hitSlop={8}
+          style={dateInputStyles.arrowBtn}
+        >
+          <Ionicons name="chevron-back" size={14} color={colors.textMuted} />
+        </Pressable>
+        <Text style={[dateInputStyles.valueText, { color: value ? colors.text : colors.textMuted }]}>
+          {displayValue}
+        </Text>
+        <Pressable
+          onPress={() => {
+            const current = value ? new Date(value + 'T00:00:00') : new Date();
+            current.setDate(current.getDate() + 1);
+            onChange(current.toISOString().slice(0, 10));
+          }}
+          hitSlop={8}
+          style={dateInputStyles.arrowBtn}
+        >
+          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const dateInputStyles = StyleSheet.create({
+  container: {
+    gap: Spacing.xs,
+  },
+  label: {
+    fontSize: Typography.xs,
+    fontWeight: '500',
+  },
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  arrowBtn: {
+    padding: Spacing.xs,
+  },
+  valueText: {
+    flex: 1,
+    fontSize: Typography.sm,
+    textAlign: 'center',
+  },
+});
 
 interface FilterDrawerProps {
   visible: boolean;
@@ -74,7 +201,7 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
 
-  const panelHeight = screenHeight * 0.65;
+  const panelHeight = screenHeight * 0.75;
   const translateY = useSharedValue(panelHeight);
   const backdropOpacity = useSharedValue(0);
 
@@ -87,9 +214,28 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
     toggleCategory,
     resetFilters,
     hasActiveFilters,
+    customDateRange,
+    setCustomDateRange,
   } = useEventsFilterStore();
 
   const { data: categories } = useCategories();
+  const { status: locationStatus, requestLocation, clearLocation, hasLocation } = useUserLocation();
+
+  // Local state for the custom date range while editing
+  const today = new Date().toISOString().slice(0, 10);
+  const [localStart, setLocalStart] = useState(customDateRange?.startDate ?? today);
+  const [localEnd, setLocalEnd] = useState(customDateRange?.endDate ?? today);
+
+  // Sync local state from store when drawer opens
+  useEffect(() => {
+    if (visible && customDateRange) {
+      setLocalStart(customDateRange.startDate);
+      setLocalEnd(customDateRange.endDate);
+    } else if (visible) {
+      setLocalStart(today);
+      setLocalEnd(today);
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (visible) {
@@ -101,7 +247,14 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
     }
   }, [visible]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
+    // Commit custom date range when closing if time filter is 'custom'
+    if (timeFilter === 'custom') {
+      const start = localStart || today;
+      const end = localEnd && localEnd >= start ? localEnd : start;
+      setCustomDateRange({ startDate: start, endDate: end });
+    }
+
     translateY.value = withTiming(panelHeight, {
       duration: 250,
       easing: Easing.in(Easing.cubic),
@@ -111,7 +264,7 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
       }
     });
     backdropOpacity.value = withTiming(0, { duration: 250 });
-  };
+  }, [timeFilter, localStart, localEnd, panelHeight, onClose, setCustomDateRange, today]);
 
   const panelStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -120,6 +273,35 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
   }));
+
+  const handleSortPress = useCallback(async (value: SortOption) => {
+    if (value === 'nearby' && !hasLocation) {
+      await requestLocation();
+    }
+    if (value !== 'nearby' && hasLocation) {
+      clearLocation();
+    }
+    setSortBy(value);
+  }, [hasLocation, requestLocation, clearLocation, setSortBy]);
+
+  const handleTimeFilterPress = useCallback((value: TimeFilter) => {
+    setTimeFilter(value);
+    if (value !== 'custom') {
+      setCustomDateRange(null);
+    }
+  }, [setTimeFilter, setCustomDateRange]);
+
+  const handleStartChange = useCallback((val: string) => {
+    setLocalStart(val);
+    // If end is before new start, reset end
+    if (localEnd && val > localEnd) {
+      setLocalEnd(val);
+    }
+  }, [localEnd]);
+
+  const handleEndChange = useCallback((val: string) => {
+    setLocalEnd(val);
+  }, []);
 
   return (
     <Modal
@@ -180,7 +362,7 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
                   return (
                     <Pressable
                       key={filter.value}
-                      onPress={() => setTimeFilter(filter.value)}
+                      onPress={() => handleTimeFilterPress(filter.value)}
                       style={({ pressed }) => [
                         styles.chip,
                         {
@@ -191,6 +373,13 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
                         pressed && { opacity: 0.8 },
                       ]}
                     >
+                      {filter.value === 'custom' && (
+                        <Ionicons
+                          name="calendar-outline"
+                          size={13}
+                          color={isActive ? '#fff' : colors.textSecondary}
+                        />
+                      )}
                       <Text
                         style={[
                           styles.chipText,
@@ -205,6 +394,25 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
                   );
                 })}
               </View>
+
+              {/* Custom date range pickers */}
+              {timeFilter === 'custom' && (
+                <View style={[styles.dateRangeContainer, { backgroundColor: colors.inputBackground + '60' }]}>
+                  <DateInput
+                    label="From"
+                    value={localStart}
+                    onChange={handleStartChange}
+                    minDate={today}
+                  />
+                  <View style={[styles.dateDivider, { backgroundColor: colors.divider }]} />
+                  <DateInput
+                    label="To"
+                    value={localEnd}
+                    onChange={handleEndChange}
+                    minDate={localStart || today}
+                  />
+                </View>
+              )}
             </View>
 
             {/* Sort By section */}
@@ -215,10 +423,14 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
               <View style={styles.radioList}>
                 {SORT_OPTIONS.map((option) => {
                   const isActive = sortBy === option.value;
+                  const isNearby = option.value === 'nearby';
+                  const showLocationBadge = isNearby && hasLocation;
+                  const showRequestingBadge = isNearby && locationStatus === 'requesting';
+                  const showDeniedBadge = isNearby && locationStatus === 'denied';
                   return (
                     <Pressable
                       key={option.value}
-                      onPress={() => setSortBy(option.value)}
+                      onPress={() => handleSortPress(option.value)}
                       style={({ pressed }) => [
                         styles.radioRow,
                         pressed && { opacity: 0.8 },
@@ -236,6 +448,11 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
                       >
                         {isActive && <View style={styles.radioInner} />}
                       </View>
+                      <Ionicons
+                        name={option.icon}
+                        size={14}
+                        color={isActive ? Magenta[500] : colors.textMuted}
+                      />
                       <Text
                         style={[
                           styles.radioLabel,
@@ -244,6 +461,24 @@ export function FilterDrawer({ visible, onClose }: FilterDrawerProps) {
                       >
                         {option.label}
                       </Text>
+                      {showLocationBadge && (
+                        <View style={[styles.locationBadge, { backgroundColor: Magenta[500] + '20' }]}>
+                          <Ionicons name="checkmark-circle" size={12} color={Magenta[500]} />
+                          <Text style={[styles.locationBadgeText, { color: Magenta[500] }]}>
+                            Location on
+                          </Text>
+                        </View>
+                      )}
+                      {showRequestingBadge && (
+                        <Text style={[styles.locationHint, { color: colors.textMuted }]}>
+                          Requesting...
+                        </Text>
+                      )}
+                      {showDeniedBadge && (
+                        <Text style={[styles.locationHint, { color: colors.error }]}>
+                          Permission denied
+                        </Text>
+                      )}
                     </Pressable>
                   );
                 })}
@@ -378,6 +613,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     fontWeight: '500',
   },
+  dateRangeContainer: {
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.md,
+  },
+  dateDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: Spacing.xs,
+  },
   radioList: {
     gap: Spacing.md,
   },
@@ -403,5 +648,21 @@ const styles = StyleSheet.create({
   radioLabel: {
     fontSize: Typography.sm,
     fontWeight: '500',
+    flex: 1,
+  },
+  locationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  locationBadgeText: {
+    fontSize: Typography.xs,
+    fontWeight: '500',
+  },
+  locationHint: {
+    fontSize: Typography.xs,
   },
 });
