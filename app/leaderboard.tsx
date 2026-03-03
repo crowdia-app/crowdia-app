@@ -16,6 +16,7 @@ import { AuthService } from '@/services/auth';
 import { useAuthStore } from '@/stores/authStore';
 
 type LeaderboardEntry = {
+  id: string;
   rank: number;
   display_name: string | null;
   username: string | null;
@@ -43,7 +44,7 @@ export default function LeaderboardScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
-  const { userProfile } = useAuthStore();
+  const { user, userProfile } = useAuthStore();
 
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,7 +57,7 @@ export default function LeaderboardScreen() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const myRank = entries.find((e) => e.username === userProfile?.username)?.rank;
+  const myRank = entries.find((e) => e.id === user?.id)?.rank;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -106,12 +107,12 @@ export default function LeaderboardScreen() {
           showsVerticalScrollIndicator={false}
         >
           {entries.map((entry, index) => {
-            const isMe = entry.username === userProfile?.username;
+            const isMe = entry.id === user?.id;
             const medalColor = index < 3 ? MEDAL_COLORS[index] : null;
 
             return (
               <View
-                key={`${entry.rank}-${entry.username}`}
+                key={entry.id}
                 style={[
                   styles.row,
                   {

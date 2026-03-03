@@ -594,7 +594,11 @@ export default function ProfileScreen() {
         visible={showOrgRequestModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowOrgRequestModal(false)}
+        onRequestClose={() => {
+          setShowOrgRequestModal(false);
+          setOrgName('');
+          setOrgReason('');
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>

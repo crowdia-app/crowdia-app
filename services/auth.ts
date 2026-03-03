@@ -94,14 +94,10 @@ export class AuthService {
     return data;
   }
 
-  static async awardEmailConfirmationPoints(userId: string, currentPoints: number) {
-    const { error } = await supabase
-      .from('users')
-      .update({
-        points: currentPoints + 50,
-        email_confirmed_points_awarded: true,
-      })
-      .eq('id', userId);
+  static async awardEmailConfirmationPoints(userId: string) {
+    const { error } = await supabase.rpc('award_email_confirmation_points', {
+      user_id_param: userId,
+    });
 
     if (error) throw error;
 

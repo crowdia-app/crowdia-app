@@ -9,9 +9,9 @@ import {
   Linking,
   Share,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import { showAlert } from '@/utils/alert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -235,7 +235,7 @@ export default function EventDetailScreen() {
 
   const handleCheckIn = async () => {
     if (!user) {
-      Alert.alert('Sign in required', 'You need to be signed in to check in to events.');
+      showAlert('Sign in required', 'You need to be signed in to check in to events.');
       return;
     }
     if (Platform.OS !== 'web') {
@@ -243,16 +243,16 @@ export default function EventDetailScreen() {
     }
     try {
       await checkInMutation.mutateAsync();
-      Alert.alert(
+      showAlert(
         'Checked in!',
         `You earned ${CHECK_IN_POINTS} points for checking in to this event.`,
         [{ text: 'Nice!', style: 'default' }]
       );
     } catch (err: any) {
       if (err?.code === '23505') {
-        Alert.alert('Already checked in', 'You have already checked in to this event.');
+        showAlert('Already checked in', 'You have already checked in to this event.');
       } else {
-        Alert.alert('Check-in failed', err?.message ?? 'Something went wrong. Please try again.');
+        showAlert('Check-in failed', err?.message ?? 'Something went wrong. Please try again.');
       }
     }
   };

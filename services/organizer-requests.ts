@@ -83,37 +83,18 @@ export async function fetchAllOrganizerRequests(): Promise<OrganizerRequest[]> {
   return (data || []) as OrganizerRequest[];
 }
 
-/** Approve a request: update status and create organizer record */
+/** Approve a request: atomically creates organizer record and updates request status */
 export async function approveOrganizerRequest(
   requestId: string,
-  request: OrganizerRequest,
+  _request: OrganizerRequest,
   reviewerId: string
 ): Promise<void> {
-  // Create organizer record — admin approval IS the verification step
-  const now = new Date().toISOString();
-  const { error: orgError } = await supabase.from('organizers').upsert({
-    id: request.user_id,
-    user_id: request.user_id,
-    organization_name: request.organization_name,
-    is_verified: true,
-    verified_by: reviewerId,
-    verified_at: now,
+  const { error } = await supabase.rpc('approve_organizer_request', {
+    request_id_param: requestId,
+    reviewer_id_param: reviewerId,
   });
 
-  if (orgError) throw orgError;
-
-  // Update request status
-  const { error: reqError } = await supabase
-    .from('organizer_requests')
-    .update({
-      status: 'approved',
-      reviewed_by: reviewerId,
-      reviewed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', requestId);
-
-  if (reqError) throw reqError;
+  if (error) throw error;
 }
 
 /** Reject a request */

@@ -61,10 +61,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           !userProfile.email_confirmed_points_awarded
         ) {
           // Award 50 points for email confirmation
-          userProfile = await AuthService.awardEmailConfirmationPoints(
-            user.id,
-            userProfile.points
-          );
+          userProfile = await AuthService.awardEmailConfirmationPoints(user.id);
           // Award referral points to the referrer if this user was referred
           if (userProfile?.referred_by) {
             await AuthService.awardReferralPoints(user.id);
@@ -173,10 +170,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Fetch the user/profile if session is now available.
       const user = await AuthService.getCurrentUser();
       if (user) {
-        const [userProfile, organizerProfile] = await Promise.all([
+        let [userProfile, organizerProfile] = await Promise.all([
           AuthService.getUserProfile(user.id),
           AuthService.getOrganizerProfile(user.id),
         ]);
+
+        // Google users are inherently email-verified -- award confirmation points if not yet awarded
+        if (userProfile && !userProfile.email_confirmed_points_awarded) {
+          userProfile = await AuthService.awardEmailConfirmationPoints(user.id);
+          if (userProfile?.referred_by) {
+            await AuthService.awardReferralPoints(user.id);
+          }
+        }
+
         set({ user, userProfile, organizerProfile, isGoogleSigningIn: false });
       } else {
         // Web redirect case -- page is navigating away, just clear the loading state
