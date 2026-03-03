@@ -89,12 +89,15 @@ export async function approveOrganizerRequest(
   request: OrganizerRequest,
   reviewerId: string
 ): Promise<void> {
-  // Create organizer record
+  // Create organizer record — admin approval IS the verification step
+  const now = new Date().toISOString();
   const { error: orgError } = await supabase.from('organizers').upsert({
     id: request.user_id,
     user_id: request.user_id,
     organization_name: request.organization_name,
-    is_verified: false,
+    is_verified: true,
+    verified_by: reviewerId,
+    verified_at: now,
   });
 
   if (orgError) throw orgError;
