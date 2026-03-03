@@ -4,10 +4,12 @@ import {
   GoogleMap,
   useJsApiLoader,
   OverlayView,
+  MarkerF,
   InfoWindow,
 } from '@react-google-maps/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { Asset } from 'expo-asset';
 import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, Typography, Magenta } from '@/constants/theme';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
@@ -52,26 +54,25 @@ const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 const MARKER_SIZE = 32;
 const crowdiaLogo = require('@/assets/images/crowdia-logo-icon-transparent.png');
+const crowdiaLogoUri = Asset.fromModule(crowdiaLogo).uri;
 
-// Offset so the pin tip anchors at the lat/lng position
+// OverlayView offset for the single-marker mode (event detail page)
 const getMarkerOffset = () => ({
   x: -(MARKER_SIZE / 2),
   y: -MARKER_SIZE,
 });
 
-// Map marker using the actual Crowdia logo PNG via expo-image
-function MapMarker({ onClick }: { onClick?: () => void }) {
+// Map marker for single-marker mode (OverlayView -- no flicker since the map doesn't pan)
+function MapMarker() {
   return (
     <Image
       source={crowdiaLogo}
       style={{
         width: MARKER_SIZE,
         height: MARKER_SIZE,
-        cursor: 'pointer',
         filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))',
       } as any}
       contentFit="contain"
-      onClick={onClick}
     />
   );
 }
@@ -229,14 +230,16 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
       }}
     >
       {events.map((event) => (
-        <OverlayView
+        <MarkerF
           key={event.id}
           position={{ lat: event.location_lat!, lng: event.location_lng! }}
-          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-          getPixelPositionOffset={getMarkerOffset}
-        >
-          <MapMarker onClick={() => handleMarkerClick(event)} />
-        </OverlayView>
+          icon={crowdiaLogoUri ? {
+            url: crowdiaLogoUri,
+            scaledSize: new google.maps.Size(MARKER_SIZE, MARKER_SIZE),
+            anchor: new google.maps.Point(MARKER_SIZE / 2, MARKER_SIZE),
+          } : undefined}
+          onClick={() => handleMarkerClick(event)}
+        />
       ))}
 
       {selectedEvent && (
