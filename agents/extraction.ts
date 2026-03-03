@@ -263,7 +263,7 @@ async function enrichEventsFromDetailPages(
 ): Promise<void> {
   let sourceHost: string;
   try {
-    sourceHost = new URL(sourceUrl).hostname;
+    sourceHost = new URL(sourceUrl).hostname.replace(/^www\./, "");
   } catch {
     return;
   }
@@ -274,16 +274,20 @@ async function enrichEventsFromDetailPages(
     // Only enrich from same-domain detail pages to avoid crawling external sites
     let detailHost: string;
     try {
-      detailHost = new URL(event.detail_url).hostname;
+      detailHost = new URL(event.detail_url).hostname.replace(/^www\./, "");
     } catch {
       continue;
     }
     if (detailHost !== sourceHost) continue;
 
-    // Only enrich if we're missing key data — avoids unnecessary HTTP requests
-    const needsImage = !event.image_url;
+    // Only enrich if we're missing key data — avoids unnecessary HTTP requests.
+    // Also enrich if the image is generic (listing-page og:image that will be
+    // stripped later) or if the date looks like a first-of-month default set by
+    // the LLM when the listing page only says "March 2026" with no specific day.
+    const needsImage = !event.image_url || isGenericImageUrl(event.image_url);
     const needsDescription = !event.description || event.description.length < 100;
-    if (!needsImage && !needsDescription) continue;
+    const needsDate = /-\d{2}-01T/.test(event.start_time); // day=01 → likely defaulted
+    if (!needsImage && !needsDescription && !needsDate) continue;
 
     try {
       const html = await fetchPageDirect(event.detail_url);
