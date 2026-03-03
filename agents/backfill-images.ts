@@ -2,7 +2,7 @@ import { getSupabase } from "./db/client";
 import { updateEvent } from "./db/events";
 import { braveSearch } from "./tools/brave-search";
 import { fetchPageHtmlHeadless, closeBrowser } from "./tools/headless";
-import { uploadEventImage } from "./tools/image-storage";
+import { uploadEventImage, isGenericImageUrl } from "./tools/image-storage";
 
 interface EventWithMissingImage {
   id: string;
@@ -33,29 +33,6 @@ const LISTING_PAGE_PATTERNS = [
 
 // Sites that require headless browser
 const HEADLESS_DOMAINS = new Set(["ra.co", "dice.fm", "xceed.me", "teatro.it", "teatrobiondo.it"]);
-
-// Known generic/listing page images that should be filtered out
-const GENERIC_IMAGE_PATTERNS = [
-  /eventi-palermo-e-dintorni\.png$/i,  // enjoysicilia.it generic
-  /canzoni-fb\.png$/i,                  // canzoni.it generic
-  /teatro\.it-spettacoli-teatrali\.jpg$/i, // teatro.it listing
-  /\/default[-_]?image/i,
-  /\/placeholder/i,
-  /\/no[-_]?image/i,
-  /\/missing[-_]?image/i,
-  /\/generic[-_]?event/i,
-  /\/logo[-_]?(site|header|main)/i,
-];
-
-// Crowdia fallback image URL (uploaded to Supabase storage)
-const CROWDIA_FALLBACK_IMAGE = "https://mqcufztknioapxuzsevn.supabase.co/storage/v1/object/public/event-images/fallback/crowdia-logo.png";
-
-/**
- * Check if an image URL is a known generic/listing image
- */
-function isGenericImage(url: string): boolean {
-  return GENERIC_IMAGE_PATTERNS.some((pattern) => pattern.test(url));
-}
 
 function isListingPageUrl(url: string): boolean {
   return LISTING_PAGE_PATTERNS.some((pattern) => pattern.test(url));
@@ -137,11 +114,11 @@ function extractImageFromHtml(html: string): string | null {
 function isValidImageUrl(url: string): boolean {
   if (!url) return false;
   if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
-  if (url.includes("placeholder") || url.includes("default")) return false;
+  if (url.includes("placeholder") || url.includes("default") || url.includes("no-image")) return false;
   if (url.length < 20) return false;
-  // Filter out known generic/listing images
-  if (isGenericImage(url)) {
-    console.log(`    ⚠️ Skipping generic image: ${url.substring(url.lastIndexOf('/') + 1)}`);
+  // Filter out known generic/placeholder/logo images using the shared utility
+  if (isGenericImageUrl(url)) {
+    console.log(`    Skipping generic image: ${url.substring(url.lastIndexOf('/') + 1)}`);
     return false;
   }
   return true;

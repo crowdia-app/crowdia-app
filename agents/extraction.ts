@@ -772,6 +772,27 @@ export async function runExtractionAgent(
             }
           }
 
+          // Strip images that are shared by multiple events in the same extraction batch.
+          // When the same image URL appears on more than one event extracted from a single
+          // listing page, it is almost certainly the page's own og:image (not per-event
+          // artwork). Clearing it prevents different events from sharing the same image.
+          if (events.length > 1) {
+            const imageCounts = new Map<string, number>();
+            for (const event of events) {
+              if (event.image_url) {
+                imageCounts.set(event.image_url, (imageCounts.get(event.image_url) ?? 0) + 1);
+              }
+            }
+            for (const event of events) {
+              if (event.image_url && (imageCounts.get(event.image_url) ?? 0) > 1) {
+                await logger.debug(
+                  `Cleared shared listing image for "${event.title.substring(0, 30)}...": ${event.image_url.substring(0, 60)}`
+                );
+                event.image_url = undefined;
+              }
+            }
+          }
+
           // Pre-upload website images to Supabase storage (similar to Instagram)
           // This prevents external URLs from breaking (403/404) before event creation
           for (const event of events) {

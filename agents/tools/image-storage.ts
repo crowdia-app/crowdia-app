@@ -95,6 +95,85 @@ export function isStoredInBucket(url: string): boolean {
 }
 
 /**
+ * Patterns for URLs that are known to be generic/placeholder/logo images,
+ * not images that are specific to a particular event.
+ *
+ * Used to reject images before they are stored as event cover images so
+ * that multiple events don't end up sharing the same placeholder artwork.
+ */
+const GENERIC_IMAGE_URL_PATTERNS: RegExp[] = [
+  // Explicit placeholder/no-image filenames
+  /\/placeholder\b/i,
+  /\/no[-_]?image/i,
+  /\/no[-_]?photo/i,
+  /\/default[-_]?image/i,
+  /\/missing[-_]?image/i,
+  /\/generic[-_]?event/i,
+  // Site-specific generic images we have observed in the wild
+  /events\/placeholder\.jpg/i,              // teatro.it/images/events/placeholder.jpg
+  /spettacoli\/placeholder\.jpg/i,          // teatrobiondo.it/images/spettacoli/placeholder.jpg
+  /no-image-event\.jpg/i,                   // teatro.it/images/no-image-event.jpg
+  /eventi-palermo-e-dintorni/i,             // enjoysicilia.it generic banner
+  /canzoni-fb\.png/i,                       // canzoni.it generic Facebook image
+  /teatro\.it-spettacoli-teatrali\.jpg/i,   // teatro.it listing page image
+  // Logo images (site branding, not event artwork)
+  /\/logo[-_]?(site|header|main|footer)/i,
+  /balarm_logo/i,
+  /crowdia[-_]logo/i,
+  // Fallback image stored in our own bucket under /fallback/ prefix
+  /\/event-images\/fallback\//i,
+  // URLs that are not image files at all (e.g., a homepage URL assigned as image_url)
+  // We detect these by checking that the URL has no image extension AND no image CDN pattern
+];
+
+/**
+ * Return true when the URL is a known generic, placeholder, or logo image
+ * that should NOT be used as an event cover image.
+ *
+ * This prevents multiple events from sharing the same non-specific artwork.
+ */
+export function isGenericImageUrl(url: string): boolean {
+  if (!url) return false;
+  return GENERIC_IMAGE_URL_PATTERNS.some((p) => p.test(url));
+}
+
+/**
+ * Return true when a URL is a valid, event-specific image URL suitable for
+ * use as a cover image.
+ *
+ * Rejects:
+ * - empty / non-http URLs
+ * - known generic/placeholder/logo images
+ * - URLs that appear to be HTML pages rather than image files
+ */
+export function isValidEventImageUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
+  if (url.length < 20) return false;
+  if (url.includes("placeholder") || url.includes("no-image")) return false;
+  if (isGenericImageUrl(url)) return false;
+
+  // Reject URLs that look like HTML pages (no extension or clearly HTML path)
+  // A valid image URL typically ends with an image extension, a query string,
+  // or is served from a known image CDN.
+  const hasImageExtension = /\.(jpe?g|png|webp|gif|avif|svg)(\?|#|$)/i.test(url);
+  const isImageCdn =
+    url.includes("supabase.co/storage") ||
+    url.includes("cdninstagram") ||
+    url.includes("fbcdn.net") ||
+    url.includes("wsrv.nl") ||
+    url.includes("/storage/") ||
+    url.includes("/uploads/") ||
+    url.includes("/images/") ||
+    url.includes("/media/") ||
+    url.includes("/img/") ||
+    url.includes("/photos/") ||
+    url.includes("/assets/");
+
+  return hasImageExtension || isImageCdn;
+}
+
+/**
  * Upload an event image to Supabase Storage
  * Downloads the image from the source URL and stores it in our bucket
  */
@@ -110,6 +189,12 @@ export async function uploadEventImage(
   // Skip invalid URLs
   if (!imageUrl || imageUrl.length < 10 || !imageUrl.startsWith("http")) {
     return { success: false, error: "Invalid image URL" };
+  }
+
+  // Reject known generic/placeholder/logo images so multiple events don't
+  // end up sharing the same non-specific artwork.
+  if (isGenericImageUrl(imageUrl)) {
+    return { success: false, error: "Generic or placeholder image — skipped" };
   }
 
   const imageData = await downloadImage(imageUrl);
