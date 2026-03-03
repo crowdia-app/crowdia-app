@@ -14,11 +14,13 @@ interface AuthState {
   error: string | null;
   isSigningUp: boolean;
   isLoggingIn: boolean;
+  isGoogleSigningIn: boolean;
 
   // Actions
   initialize: () => Promise<void>;
   signUp: (email: string, password: string, displayName?: string, username?: string, isOrganizer?: boolean, organizationName?: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
@@ -41,6 +43,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
   isSigningUp: false,
   isLoggingIn: false,
+  isGoogleSigningIn: false,
 
   initialize: async () => {
     try {
@@ -151,6 +154,35 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoggingIn: false,
       });
       throw error;
+    }
+  },
+
+  signInWithGoogle: async () => {
+    set({ isGoogleSigningIn: true, error: null });
+    try {
+      await AuthService.signInWithGoogle();
+      // For web, the page will redirect. For native, session is set after code exchange.
+      // Fetch the user/profile if session is now available.
+      const user = await AuthService.getCurrentUser();
+      if (user) {
+        const [userProfile, organizerProfile] = await Promise.all([
+          AuthService.getUserProfile(user.id),
+          AuthService.getOrganizerProfile(user.id),
+        ]);
+        set({ user, userProfile, organizerProfile, isGoogleSigningIn: false });
+      } else {
+        // Web redirect case -- page is navigating away, just clear the loading state
+        set({ isGoogleSigningIn: false });
+      }
+    } catch (error) {
+      const msg = getErrorMessage(error);
+      // Don't surface cancellation as an error
+      if (msg === 'Google sign-in was cancelled') {
+        set({ isGoogleSigningIn: false });
+      } else {
+        set({ error: msg, isGoogleSigningIn: false });
+        throw error;
+      }
     }
   },
 

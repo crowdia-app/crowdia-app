@@ -146,6 +146,32 @@ export const createAuthStyles = (isDark: boolean) => {
     toggleTextActive: {
       color: '#FFFFFF',
     },
+    googleButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      backgroundColor: '#fff',
+      borderWidth: 1,
+      borderColor: '#dadce0',
+      padding: Spacing.md,
+      borderRadius: BorderRadius.md,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 3,
+        },
+        android: { elevation: 2 },
+        default: { boxShadow: '0px 1px 3px rgba(0,0,0,0.1)' },
+      }),
+    },
+    googleButtonText: {
+      color: '#3c4043',
+      fontSize: Typography.md,
+      fontWeight: '600',
+    },
     divider: {
       flexDirection: 'row',
       alignItems: 'center',

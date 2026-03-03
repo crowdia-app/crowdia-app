@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { AuthError } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 
 export interface SignUpInput {
   email: string;
@@ -105,6 +107,54 @@ export class AuthService {
 
     // Fetch and return updated profile
     return await AuthService.getUserProfile(userId);
+  }
+
+  static async signInWithGoogle(): Promise<void> {
+    if (Platform.OS === 'web') {
+      // On web, redirect to Google OAuth and come back to the app
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'https://app.crowdia.ai',
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
+      });
+      if (error) throw error;
+    } else {
+      // On native, open the OAuth URL in a browser tab and wait for the deep link redirect
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'crowdiaapp://auth/callback',
+          skipBrowserRedirect: true,
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
+      });
+      if (error) throw error;
+      if (!data.url) throw new Error('No OAuth URL returned');
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, 'crowdiaapp://auth/callback');
+
+      if (result.type === 'success' && result.url) {
+        // Extract the code/tokens from the callback URL and exchange them
+        const url = new URL(result.url);
+        const code = url.searchParams.get('code');
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
+        } else {
+          // Handle implicit flow (hash params)
+          const hashParams = new URLSearchParams(url.hash.replace('#', ''));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          if (accessToken) {
+            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
+          }
+        }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        throw new Error('Google sign-in was cancelled');
+      }
+    }
   }
 
   static async verifyOrganizerEmail(token: string, type: string) {

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { createAuthStyles } from '@/styles/auth.styles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
+import { GoogleIcon } from '@/components/ui/google-icon';
 
 // On web, wrap form fields in a <form> so browsers recognize it for autofill
 function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
@@ -25,7 +26,7 @@ export default function SignupScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const styles = createAuthStyles(colorScheme === 'dark');
-  const { signUp, isSigningUp, error, clearError } = useAuthStore();
+  const { signUp, isSigningUp, signInWithGoogle, isGoogleSigningIn, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -33,6 +34,20 @@ export default function SignupScreen() {
 
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
+
+  const handleGoogleSignIn = async () => {
+    clearError();
+    try {
+      await signInWithGoogle();
+      if (Platform.OS !== 'web') {
+        router.replace('/(tabs)');
+      }
+    } catch {
+      // Error displayed via store's error state
+    }
+  };
+
+  const isAnyLoading = isSigningUp || isGoogleSigningIn;
 
   const handleSignup = async () => {
     setValidationError(null);
@@ -95,7 +110,7 @@ export default function SignupScreen() {
                   placeholderTextColor="#999"
                   value={email}
                   onChangeText={setEmail}
-                  editable={!isSigningUp}
+                  editable={!isAnyLoading}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
@@ -116,7 +131,7 @@ export default function SignupScreen() {
                   placeholderTextColor="#999"
                   value={password}
                   onChangeText={setPassword}
-                  editable={!isSigningUp}
+                  editable={!isAnyLoading}
                   secureTextEntry
                   autoComplete="password-new"
                   textContentType="newPassword"
@@ -137,7 +152,7 @@ export default function SignupScreen() {
                   placeholderTextColor="#999"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  editable={!isSigningUp}
+                  editable={!isAnyLoading}
                   secureTextEntry
                   autoComplete="password-new"
                   textContentType="newPassword"
@@ -166,11 +181,11 @@ export default function SignupScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.button,
-                  isSigningUp && styles.buttonDisabled,
+                  isAnyLoading && styles.buttonDisabled,
                   pressed && { opacity: 0.8 },
                 ]}
                 onPress={handleSignup}
-                disabled={isSigningUp}
+                disabled={isAnyLoading}
               >
                 {isSigningUp ? (
                   <ActivityIndicator color="#fff" />
@@ -179,6 +194,31 @@ export default function SignupScreen() {
                 )}
               </Pressable>
             </FormWrapper>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.googleButton,
+                isAnyLoading && styles.buttonDisabled,
+                pressed && { opacity: 0.8 },
+              ]}
+              onPress={handleGoogleSignIn}
+              disabled={isAnyLoading}
+            >
+              {isGoogleSigningIn ? (
+                <ActivityIndicator color="#444" />
+              ) : (
+                <>
+                  <GoogleIcon size={20} />
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                </>
+              )}
+            </Pressable>
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />

@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { createAuthStyles } from '@/styles/auth.styles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
+import { GoogleIcon } from '@/components/ui/google-icon';
 
 // On web, wrap form fields in a <form> so browsers recognize it for autofill
 function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
@@ -24,7 +25,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const styles = createAuthStyles(colorScheme === 'dark');
-  const { login, isLoggingIn, error, clearError } = useAuthStore();
+  const { login, isLoggingIn, signInWithGoogle, isGoogleSigningIn, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -47,6 +48,22 @@ export default function LoginScreen() {
       // Error is displayed inline via the store's error state
     }
   };
+
+  const handleGoogleSignIn = async () => {
+    clearError();
+    try {
+      await signInWithGoogle();
+      // On native the session is set synchronously after code exchange
+      if (Platform.OS !== 'web') {
+        router.replace('/(tabs)');
+      }
+      // On web the page redirects; nothing to do here
+    } catch {
+      // Error displayed via store's error state
+    }
+  };
+
+  const isAnyLoading = isLoggingIn || isGoogleSigningIn;
 
   const displayError = validationError || error;
 
@@ -79,7 +96,7 @@ export default function LoginScreen() {
               placeholderTextColor="#999"
               value={email}
               onChangeText={setEmail}
-              editable={!isLoggingIn}
+              editable={!isAnyLoading}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
@@ -100,7 +117,7 @@ export default function LoginScreen() {
               placeholderTextColor="#999"
               value={password}
               onChangeText={setPassword}
-              editable={!isLoggingIn}
+              editable={!isAnyLoading}
               secureTextEntry
               autoComplete="current-password"
               textContentType="password"
@@ -115,11 +132,11 @@ export default function LoginScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.button,
-              isLoggingIn && styles.buttonDisabled,
+              isAnyLoading && styles.buttonDisabled,
               pressed && { opacity: 0.8 },
             ]}
             onPress={handleLogin}
-            disabled={isLoggingIn}
+            disabled={isAnyLoading}
           >
             {isLoggingIn ? (
               <ActivityIndicator color="#fff" />
@@ -128,6 +145,31 @@ export default function LoginScreen() {
             )}
           </Pressable>
         </FormWrapper>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.googleButton,
+            isAnyLoading && styles.buttonDisabled,
+            pressed && { opacity: 0.8 },
+          ]}
+          onPress={handleGoogleSignIn}
+          disabled={isAnyLoading}
+        >
+          {isGoogleSigningIn ? (
+            <ActivityIndicator color="#444" />
+          ) : (
+            <>
+              <GoogleIcon size={20} />
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </>
+          )}
+        </Pressable>
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
