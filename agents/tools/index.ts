@@ -16,3 +16,4 @@ export {
   detectEventEmbeds,
   type ExtractedLinks,
 } from "./link-extractor";
+export { extractHtmlMetadata, type HtmlMetadata } from "./html-meta";

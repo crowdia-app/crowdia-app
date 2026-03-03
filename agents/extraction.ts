@@ -36,6 +36,7 @@ import {
   extractLinksFromHtml,
   extractOrganizerNames,
   extractVenueNames,
+  extractHtmlMetadata,
   type ExtractedEvent,
   type AgentReport,
   type InstagramPost,
@@ -55,6 +56,7 @@ interface ExtractionStats {
   eventsDuplicateFuzzy: number;
   eventsSkippedPast: number;
   eventsSkippedListingUrl: number;
+  eventsSkippedNonPalermo: number;
   eventsFailed: number;
   locationsCreated: number;
   organizersCreated: number;
@@ -241,6 +243,139 @@ function isTrustedListingSource(url: string): boolean {
   }
 }
 
+/**
+ * Enrich events by fetching their specific detail pages.
+ *
+ * When events are extracted from listing pages, the data can be incomplete:
+ * - Dates may be generic (e.g., "March 2026" → defaulted to March 1)
+ * - Images may be missing (listing page thumbnails are unreliable)
+ * - Descriptions may be truncated
+ *
+ * This function fetches each event's detail URL and extracts better data
+ * from HTML metadata (JSON-LD structured data, og: tags, <time> elements).
+ */
+async function enrichEventsFromDetailPages(
+  events: ExtractedEvent[],
+  sourceUrl: string,
+  logger: AgentLogger
+): Promise<void> {
+  let sourceHost: string;
+  try {
+    sourceHost = new URL(sourceUrl).hostname;
+  } catch {
+    return;
+  }
+
+  for (const event of events) {
+    if (!event.detail_url || isListingPageUrl(event.detail_url)) continue;
+
+    // Only enrich from same-domain detail pages to avoid crawling external sites
+    let detailHost: string;
+    try {
+      detailHost = new URL(event.detail_url).hostname;
+    } catch {
+      continue;
+    }
+    if (detailHost !== sourceHost) continue;
+
+    // Only enrich if we're missing key data — avoids unnecessary HTTP requests
+    const needsImage = !event.image_url;
+    const needsDescription = !event.description || event.description.length < 50;
+    if (!needsImage && !needsDescription) continue;
+
+    try {
+      const html = await fetchPageDirect(event.detail_url);
+      const meta = extractHtmlMetadata(html);
+
+      if (meta.image && needsImage) {
+        event.image_url = meta.image;
+        await logger.debug(
+          `Detail page image for "${event.title.slice(0, 30)}": ${meta.image.slice(0, 60)}`
+        );
+      }
+
+      if (meta.description && needsDescription) {
+        event.description = meta.description;
+      }
+
+      // Prefer the detail page date — it's the authoritative source for this event
+      if (meta.startDate) {
+        const detailDate = new Date(meta.startDate);
+        if (!isNaN(detailDate.getTime())) {
+          // Preserve extracted time component if detail page only has a date
+          const timeComponent = event.start_time.includes("T")
+            ? event.start_time.split("T")[1]
+            : "21:00:00";
+          const newStartTime = meta.startDate.includes("T")
+            ? meta.startDate
+            : `${meta.startDate}T${timeComponent}`;
+          if (newStartTime !== event.start_time) {
+            await logger.debug(
+              `Updated date for "${event.title.slice(0, 30)}" via detail page: ${event.start_time} → ${newStartTime}`
+            );
+            event.start_time = newStartTime;
+          }
+          if (meta.endDate) event.end_time = meta.endDate;
+        }
+      }
+    } catch {
+      // Enrichment is non-critical — continue without it
+    }
+
+    // Brief pause to avoid hammering the site
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
+/**
+ * Regex patterns for locations clearly outside Palermo/Sicily.
+ * Used as a safety net after LLM extraction to catch any non-local events
+ * that slip through the LLM's location filter instruction.
+ */
+const NON_PALERMO_PATTERNS = [
+  // Foreign countries
+  /\bfrance\b/i, /\bfrancia\b/i, /\bgermany\b/i, /\bdeutschland\b/i,
+  /\bspain\b/i, /\bespana\b/i, /\bespagna\b/i, /\bengland\b/i, /\buk\b/i,
+  /\busa\b/i, /\bamerica\b/i, /\bswitzerland\b/i, /\bsvizzera\b/i,
+  /\baustria\b/i, /\bbelgium\b/i, /\bbelgio\b/i, /\bnetherlands\b/i,
+  /\bportugal\b/i, /\bportogallo\b/i, /\bgreece\b/i, /\bgrecia\b/i,
+  /\baustralia\b/i, /\bjapan\b/i, /\bgiappone\b/i,
+  // Foreign cities
+  /\bparis\b/i, /\blondon\b/i, /\bberlin\b/i, /\bamsterdam\b/i,
+  /\bbarcelona\b/i, /\bmadrid\b/i, /\bvienna\b/i, /\bwien\b/i,
+  /\bzurich\b/i, /\bgen[eè]ve\b/i, /\bgenevois\b/i, /\bbruxelles\b/i,
+  /\bbruselas\b/i, /\blisbon\b/i, /\blisbona\b/i, /\bathens\b/i, /\batene\b/i,
+  // Non-Palermo Sicilian cities
+  /\bcatania\b/i, /\bmessina\b/i, /\bsiracusa\b/i, /\bsyracuse\b/i,
+  /\btrapani\b/i, /\bagrigento\b/i, /\bargigento\b/i, /\bragusa\b/i,
+  /\benna\b/i, /\bcaltanissetta\b/i,
+  // Italian mainland cities
+  /\broma\b/i, /\brome\b/i, /\bmilano\b/i, /\bmilan\b/i, /\bnapoli\b/i,
+  /\bnaples\b/i, /\btorino\b/i, /\bturin\b/i, /\bvenezia\b/i, /\bvenice\b/i,
+  /\bfirenze\b/i, /\bflorence\b/i, /\bbologna\b/i, /\bgenova\b/i, /\bgenoa\b/i,
+  /\bbari\b/i, /\bverona\b/i, /\bpadova\b/i, /\bpadua\b/i, /\bpisa\b/i,
+];
+
+/**
+ * Check if an extracted event's location is consistent with Palermo/Sicily.
+ * Returns true if the event should be accepted, false if it should be filtered out.
+ * When no location info is present, we accept the event (trust the source).
+ */
+function isLocationInPalermo(event: ExtractedEvent): { ok: boolean; reason?: string } {
+  const locationText = [event.location_name || "", event.location_address || ""].join(" ").trim();
+
+  // No location info — accept (source is a Palermo source)
+  if (!locationText) return { ok: true };
+
+  for (const pattern of NON_PALERMO_PATTERNS) {
+    if (pattern.test(locationText)) {
+      return { ok: false, reason: `Location "${locationText}" matches non-Palermo pattern: ${pattern}` };
+    }
+  }
+
+  return { ok: true };
+}
+
 export async function runExtractionAgent(
   options: {
     isInstagramOnly?: boolean;
@@ -262,6 +397,7 @@ export async function runExtractionAgent(
     eventsDuplicateFuzzy: 0,
     eventsSkippedPast: 0,
     eventsSkippedListingUrl: 0,
+    eventsSkippedNonPalermo: 0,
     eventsFailed: 0,
     locationsCreated: 0,
     organizersCreated: 0,
@@ -591,6 +727,11 @@ export async function runExtractionAgent(
           const events = await extractEventsFromContent(content, source.name, source.url);
           await logger.info(`Extracted ${events.length} events from ${source.name}`);
 
+          // Enrich events by fetching their specific detail pages.
+          // This fixes issues where listing pages have generic dates (e.g., "March 2026"
+          // defaulted to March 1) or missing images — the detail page has accurate data.
+          await enrichEventsFromDetailPages(events, source.url, logger);
+
           // Log extraction details for debugging
           for (const event of events) {
             const hasImage = event.image_url && event.image_url.startsWith("http");
@@ -680,6 +821,14 @@ export async function runExtractionAgent(
         if (eventDate < new Date()) {
           console.log(`Skipping past event: ${extracted.title} (${extracted.start_time})`);
           stats.eventsSkippedPast++;
+          continue;
+        }
+
+        // Skip events located outside Palermo/Sicily
+        const locationCheck = isLocationInPalermo(extracted);
+        if (!locationCheck.ok) {
+          console.log(`Skipping non-Palermo event: ${extracted.title} — ${locationCheck.reason}`);
+          stats.eventsSkippedNonPalermo++;
           continue;
         }
 
@@ -834,6 +983,7 @@ export async function runExtractionAgent(
         "Duplicates (Fuzzy)": stats.eventsDuplicateFuzzy,
         "Past Events Skipped": stats.eventsSkippedPast,
         "Listing URL Skipped": stats.eventsSkippedListingUrl,
+        "Non-Palermo Skipped": stats.eventsSkippedNonPalermo,
         "Events Failed": stats.eventsFailed,
         "Rate Limit Errors": stats.rateLimitErrors,
         "Locations Created": stats.locationsCreated,
@@ -875,6 +1025,9 @@ export async function runExtractionAgent(
     await logger.info(`Duplicates: ${totalDuplicates} (${stats.eventsDuplicateInRun} in-run, ${stats.eventsDuplicateExact} exact, ${stats.eventsDuplicateFuzzy} fuzzy)`);
     await logger.info(`Past events skipped: ${stats.eventsSkippedPast}`);
     await logger.info(`Listing URL skipped: ${stats.eventsSkippedListingUrl}`);
+    if (stats.eventsSkippedNonPalermo > 0) {
+      await logger.warn(`Non-Palermo events skipped: ${stats.eventsSkippedNonPalermo}`);
+    }
     await logger.info(`Failed: ${stats.eventsFailed}`);
 
     return stats;
