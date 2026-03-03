@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,13 @@ export default function SavedScreen() {
 
   const { user } = useAuthStore();
   const { interestedEvents, isLoading, loadInterestedEvents } = useInterestsStore();
+
+  // Load saved events on mount
+  useEffect(() => {
+    if (user) {
+      loadInterestedEvents(user.id);
+    }
+  }, [user, loadInterestedEvents]);
 
   const handleRefresh = useCallback(() => {
     if (user) {

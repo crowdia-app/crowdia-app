@@ -43,19 +43,30 @@ function getRomeOffsetMinutes(localDateStr: string): number {
   // Europe/Rome: CET (UTC+1) Oct last Sun → Mar last Sun
   //              CEST (UTC+2) Mar last Sun → Oct last Sun
   const normalized = localDateStr.replace("T", " ");
-  const [datePart] = normalized.split(" ");
+  const [datePart, timePart] = normalized.split(" ");
   const [year, month, day] = datePart.split("-").map(Number);
+  const hour = timePart ? parseInt(timePart.split(":")[0], 10) : 12;
 
-  // Last Sunday of March (switch to CEST)
+  // Last Sunday of March (switch to CEST at 02:00 local)
   const cestStart = lastSundayOfMonth(year, 3); // month 3 = March
-  // Last Sunday of October (switch to CET)
+  // Last Sunday of October (switch to CET at 03:00 local)
   const cestEnd = lastSundayOfMonth(year, 10); // month 10 = October
 
   const dateNum = year * 10000 + month * 100 + day;
   const cestStartNum = year * 10000 + 3 * 100 + cestStart;
   const cestEndNum = year * 10000 + 10 * 100 + cestEnd;
 
-  if (dateNum >= cestStartNum && dateNum < cestEndNum) {
+  // On transition days, account for the exact hour of the switch
+  if (dateNum === cestStartNum) {
+    // March last Sunday: CET before 02:00, CEST from 02:00 onward
+    return hour >= 2 ? 120 : 60;
+  }
+  if (dateNum === cestEndNum) {
+    // October last Sunday: CEST before 03:00, CET from 03:00 onward
+    return hour >= 3 ? 60 : 120;
+  }
+
+  if (dateNum > cestStartNum && dateNum < cestEndNum) {
     return 120; // CEST: UTC+2
   }
   return 60; // CET: UTC+1

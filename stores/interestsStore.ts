@@ -59,6 +59,10 @@ export const useInterestsStore = create<InterestsState>((set, get) => ({
     const { interestedEventIds, interestedEvents } = get();
     const wasInterested = interestedEventIds.has(eventId);
 
+    // Capture pre-mutation state for revert
+    const prevIds = new Set(interestedEventIds);
+    const prevEvents = [...interestedEvents];
+
     // Optimistic update -- flip the state immediately
     const newIds = new Set(interestedEventIds);
     if (wasInterested) {
@@ -79,12 +83,11 @@ export const useInterestsStore = create<InterestsState>((set, get) => ({
         await addInterest(userId, eventId);
       }
     } catch (err) {
-      // Revert on failure
+      // Revert on failure using captured pre-mutation state
       console.error('Failed to toggle interest:', err);
-      const revertIds = new Set(interestedEventIds);
       set({
-        interestedEventIds: revertIds,
-        interestedEvents: get().interestedEvents,
+        interestedEventIds: prevIds,
+        interestedEvents: prevEvents,
       });
     }
   },

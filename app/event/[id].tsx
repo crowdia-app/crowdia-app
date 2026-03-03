@@ -57,23 +57,21 @@ const numberFormatter = new Intl.NumberFormat();
 
 const CHECK_IN_POINTS = 25;
 
-/** Returns true if the event is happening today or is currently ongoing */
+/** Returns true if the event is happening today or is currently ongoing (Palermo time) */
 function isEventTodayOrOngoing(startTime: string, endTime?: string | null): boolean {
   const now = new Date();
   const start = new Date(startTime);
   const end = endTime ? new Date(endTime) : null;
 
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
-
   // Currently ongoing: started and hasn't ended yet
   if (end && now >= start && now <= end) return true;
 
-  // Event starts today
-  if (start >= todayStart && start < todayEnd) return true;
+  // Compare dates in Europe/Rome timezone
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const todayPalermo = fmt.format(now);
+  const startPalermo = fmt.format(start);
 
-  return false;
+  return startPalermo === todayPalermo;
 }
 
 /** Truncate URL for display (strip protocol, trim long paths) */

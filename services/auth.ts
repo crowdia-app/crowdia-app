@@ -143,13 +143,7 @@ export class AuthService {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) throw exchangeError;
         } else {
-          // Handle implicit flow (hash params)
-          const hashParams = new URLSearchParams(url.hash.replace('#', ''));
-          const accessToken = hashParams.get('access_token');
-          const refreshToken = hashParams.get('refresh_token');
-          if (accessToken) {
-            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
-          }
+          throw new Error('No authorization code in callback URL');
         }
       } else if (result.type === 'cancel' || result.type === 'dismiss') {
         throw new Error('Google sign-in was cancelled');
