@@ -154,6 +154,13 @@ export default function SignupScreen() {
                 >
                   Terms of Service
                 </Text>
+                {' '}and{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => router.push('/legal/privacy')}
+                >
+                  Privacy Policy
+                </Text>
               </Text>
 
               <Pressable

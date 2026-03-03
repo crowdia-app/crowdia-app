@@ -304,6 +304,19 @@ export default function ProfileScreen() {
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </Pressable>
+            <View style={[styles.cardDivider, { backgroundColor: colors.divider }]} />
+            <Pressable
+              style={({ pressed }) => [styles.cardRow, pressed && { opacity: 0.6 }]}
+              onPress={() => router.push('/legal/privacy')}
+            >
+              <Ionicons name="shield-checkmark-outline" size={20} color={colors.textSecondary} />
+              <View style={styles.cardRowContent}>
+                <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                  Privacy Policy
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            </Pressable>
           </View>
         </View>
 
