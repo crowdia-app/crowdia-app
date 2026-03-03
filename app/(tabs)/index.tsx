@@ -47,6 +47,7 @@ export default function EventsFeedScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isRAGSearch,
   } = useFilteredEventsInfinite();
 
   // Map view data
@@ -193,6 +194,7 @@ export default function EventsFeedScreen() {
         placeholder="Search events..."
         onFilterPress={() => setFilterVisible(true)}
         hasActiveFilters={hasActiveFilters()}
+        isRAGSearch={isRAGSearch}
       />
 
       {/* Filter Drawer */}
