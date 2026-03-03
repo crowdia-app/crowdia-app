@@ -126,6 +126,7 @@ export default function AdminDashboard() {
           { route: '/admin/categories', icon: 'tag.fill', label: 'Categories', sub: 'Event categories and tags' },
           { route: '/admin/badges', icon: 'star.fill', label: 'Badges', sub: 'Achievement badges' },
           { route: '/admin/potential-sources', icon: 'magnifyingglass.circle.fill', label: 'Potential Sources', sub: 'Discovery queue' },
+          { route: '/admin/organizer-requests', icon: 'person.badge.plus', label: 'Organizer Requests', sub: 'Review and approve organizer applications' },
           { route: '/admin/agents', icon: 'cpu', label: 'AI Agents', sub: 'Agent runs and logs' },
         ].map((item) => (
           <TouchableOpacity

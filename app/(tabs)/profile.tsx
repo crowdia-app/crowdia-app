@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Platform,
   useColorScheme,
   ActivityIndicator,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +20,11 @@ import { useRouter } from 'expo-router';
 import { Colors, Magenta, Charcoal, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
+import {
+  getMyOrganizerRequest,
+  submitOrganizerRequest,
+  type OrganizerRequest,
+} from '@/services/organizer-requests';
 
 const numberFormatter = new Intl.NumberFormat();
 
@@ -29,12 +36,51 @@ export default function ProfileScreen() {
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
 
+  // Organizer request state
+  const [orgRequest, setOrgRequest] = useState<OrganizerRequest | null | undefined>(undefined);
+  const [showOrgRequestModal, setShowOrgRequestModal] = useState(false);
+  const [orgName, setOrgName] = useState('');
+  const [orgReason, setOrgReason] = useState('');
+  const [isSubmittingOrgRequest, setIsSubmittingOrgRequest] = useState(false);
+
   // Load full event data when profile tab is opened
   useEffect(() => {
     if (user) {
       loadInterestedEvents(user.id);
     }
   }, [user, loadInterestedEvents]);
+
+  // Load organizer request status
+  const loadOrgRequest = useCallback(async () => {
+    if (!user) return;
+    const req = await getMyOrganizerRequest();
+    setOrgRequest(req);
+  }, [user]);
+
+  useEffect(() => {
+    loadOrgRequest();
+  }, [loadOrgRequest]);
+
+  const handleSubmitOrgRequest = async () => {
+    if (!user || !orgName.trim()) return;
+    setIsSubmittingOrgRequest(true);
+    try {
+      await submitOrganizerRequest(user.id, orgName.trim(), orgReason.trim() || undefined);
+      setShowOrgRequestModal(false);
+      setOrgName('');
+      setOrgReason('');
+      await loadOrgRequest();
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to submit request';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+    } finally {
+      setIsSubmittingOrgRequest(false);
+    }
+  };
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
@@ -260,6 +306,76 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
+        {/* Become an Organizer / Request Status */}
+        {!organizerProfile ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              ORGANIZER
+            </Text>
+            {orgRequest === undefined ? null : orgRequest === null ? (
+              // No request submitted yet
+              <Pressable
+                style={({ pressed }) => [
+                  styles.card,
+                  styles.cardRow,
+                  { backgroundColor: colors.card, opacity: pressed ? 0.7 : 1 },
+                ]}
+                onPress={() => setShowOrgRequestModal(true)}
+              >
+                <Ionicons name="business-outline" size={20} color={Magenta[500]} />
+                <View style={styles.cardRowContent}>
+                  <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                    Become an Organizer
+                  </Text>
+                  <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                    Request to host events on Crowdia
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              </Pressable>
+            ) : orgRequest.status === 'pending' ? (
+              // Request pending
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
+                <View style={styles.cardRow}>
+                  <Ionicons name="time-outline" size={20} color={colors.warning} />
+                  <View style={styles.cardRowContent}>
+                    <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                      Request Under Review
+                    </Text>
+                    <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                      {orgRequest.organization_name} · Submitted{' '}
+                      {new Date(orgRequest.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View style={[styles.requestStatusBadge, { borderColor: colors.warning }]}>
+                    <Text style={[styles.requestStatusText, { color: colors.warning }]}>Pending</Text>
+                  </View>
+                </View>
+              </View>
+            ) : orgRequest.status === 'rejected' ? (
+              // Request rejected — show status + allow reapply
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
+                <View style={styles.cardRow}>
+                  <Ionicons name="close-circle-outline" size={20} color={colors.error} />
+                  <View style={styles.cardRowContent}>
+                    <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                      Request Not Approved
+                    </Text>
+                    {orgRequest.rejection_reason ? (
+                      <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                        {orgRequest.rejection_reason}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={[styles.requestStatusBadge, { borderColor: colors.error }]}>
+                    <Text style={[styles.requestStatusText, { color: colors.error }]}>Rejected</Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Saved Events */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
@@ -384,6 +500,89 @@ export default function ProfileScreen() {
         {/* Bottom Spacing */}
         <View style={{ height: insets.bottom + Spacing.xxxl }} />
       </ScrollView>
+
+      {/* Become an Organizer Modal */}
+      <Modal
+        visible={showOrgRequestModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOrgRequestModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Become an Organizer</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Submit a request to host events on Crowdia. An admin will review your application.
+            </Text>
+
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+              Organization Name *
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.divider,
+                },
+              ]}
+              value={orgName}
+              onChangeText={setOrgName}
+              placeholder="Your organization or event brand name"
+              placeholderTextColor={colors.textMuted}
+            />
+
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+              Why do you want to become an organizer? (optional)
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                styles.textInputMultiline,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.divider,
+                },
+              ]}
+              value={orgReason}
+              onChangeText={setOrgReason}
+              placeholder="Tell us about the events you plan to host..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: colors.background }]}
+                onPress={() => {
+                  setShowOrgRequestModal(false);
+                  setOrgName('');
+                  setOrgReason('');
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalBtn,
+                  { backgroundColor: orgName.trim() ? Magenta[500] : colors.divider },
+                ]}
+                onPress={handleSubmitOrgRequest}
+                disabled={!orgName.trim() || isSubmittingOrgRequest}
+              >
+                {isSubmittingOrgRequest ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Submit Request</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -618,5 +817,70 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: Typography.base,
     fontWeight: '500',
+  },
+
+  // Organizer request status badge
+  requestStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  requestStatusText: {
+    fontSize: Typography.xs,
+    fontWeight: '600',
+  },
+
+  // Organizer request modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: Typography.lg,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: Typography.sm,
+    lineHeight: Typography.sm * 1.5,
+  },
+  modalLabel: {
+    fontSize: Typography.xs,
+    fontWeight: '600',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: Typography.base,
+  },
+  textInputMultiline: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  modalBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  modalBtnText: {
+    fontSize: Typography.base,
+    fontWeight: '600',
   },
 });
