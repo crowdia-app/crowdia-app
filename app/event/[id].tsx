@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { MapSection } from '@/components/maps/MapSection';
+import { formatLocationAddress, hasPreciseLocation } from '@/utils/locationDisplay';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -54,7 +55,7 @@ const formatFullDate = (dateString: string) => {
 
 const numberFormatter = new Intl.NumberFormat();
 
-const CHECK_IN_POINTS = 10;
+const CHECK_IN_POINTS = 25;
 
 /** Returns true if the event is happening today or is currently ongoing */
 function isEventTodayOrOngoing(startTime: string, endTime?: string | null): boolean {
@@ -155,7 +156,8 @@ export default function EventDetailScreen() {
   });
 
   const imageUrl = getProxiedImageUrl(event?.cover_image_url);
-  const hasValidImage = !!imageUrl;
+  const [imageError, setImageError] = useState(false);
+  const hasValidImage = !!imageUrl && !imageError;
 
   const handleInterested = useCallback(() => {
     if (!user || !id) return;
@@ -222,6 +224,41 @@ export default function EventDetailScreen() {
     if (url) Linking.openURL(url);
   };
 
+  const handleOpenEventLink = useCallback((url: string) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank');
+    } else {
+      Linking.openURL(url);
+    }
+  }, []);
+
+  const handleCheckIn = async () => {
+    if (!user) {
+      Alert.alert('Sign in required', 'You need to be signed in to check in to events.');
+      return;
+    }
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    try {
+      await checkInMutation.mutateAsync();
+      Alert.alert(
+        'Checked in!',
+        `You earned ${CHECK_IN_POINTS} points for checking in to this event.`,
+        [{ text: 'Nice!', style: 'default' }]
+      );
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        Alert.alert('Already checked in', 'You have already checked in to this event.');
+      } else {
+        Alert.alert('Check-in failed', err?.message ?? 'Something went wrong. Please try again.');
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -250,8 +287,19 @@ export default function EventDetailScreen() {
   }
 
   const dateInfo = formatFullDate(event.event_start_time ?? new Date().toISOString());
-  const hasLocation = event.location_lat && event.location_lng;
+  // Only show map/pin for precise locations; city-center fallback coords are misleading
+  const hasLocation = hasPreciseLocation(event.location_lat, event.location_lng, event.location_address);
+  const displayAddress = formatLocationAddress(event.location_address, event.location_lat, event.location_lng);
 
+  // Primary external link: prefer ticket URL, fall back to event_url
+  const externalUrl = event.external_ticket_url || event.event_url || null;
+
+  const canCheckIn = isEventTodayOrOngoing(
+    event.event_start_time ?? new Date().toISOString(),
+    event.event_end_time
+  );
+  const hasCheckedIn = !!existingCheckIn;
+  const isCheckingIn = checkInMutation.isPending;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -269,6 +317,7 @@ export default function EventDetailScreen() {
               style={styles.heroImage}
               contentFit="cover"
               transition={300}
+              onError={() => setImageError(true)}
             />
           ) : (
             <LinearGradient
@@ -348,9 +397,9 @@ export default function EventDetailScreen() {
                 <Text style={[styles.infoLabel, { color: colors.text }]}>
                   {event.location_name}
                 </Text>
-                {event.location_address ? (
+                {displayAddress ? (
                   <Text style={[styles.infoSubLabel, { color: colors.textSecondary }]} numberOfLines={2}>
-                    {event.location_address}
+                    {displayAddress}
                   </Text>
                 ) : null}
               </View>
@@ -359,6 +408,36 @@ export default function EventDetailScreen() {
               ) : null}
             </View>
           </Pressable>
+
+          {/* Event Link */}
+          {externalUrl ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.infoCard,
+                { backgroundColor: colors.card },
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={() => handleOpenEventLink(externalUrl)}
+            >
+              <View style={styles.infoRow}>
+                <View style={[styles.infoIcon, { backgroundColor: Magenta[500] + '20' }]}>
+                  <Ionicons name="link-outline" size={20} color={Magenta[500]} />
+                </View>
+                <View style={styles.infoText}>
+                  <Text style={[styles.infoLabel, { color: colors.text }]}>
+                    {event.external_ticket_url ? 'Tickets' : 'Event page'}
+                  </Text>
+                  <Text
+                    style={[styles.infoSubLabel, { color: Magenta[500], textDecorationLine: 'underline' }]}
+                    numberOfLines={1}
+                  >
+                    {displayUrl(externalUrl)}
+                  </Text>
+                </View>
+                <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+              </View>
+            </Pressable>
+          ) : null}
 
           {/* Description */}
           {event.description ? (
@@ -429,6 +508,40 @@ export default function EventDetailScreen() {
           borderTopColor: colors.divider,
         }
       ]}>
+        {/* Check In button -- only visible when event is today or currently ongoing */}
+        {canCheckIn ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.checkInButton,
+              hasCheckedIn
+                ? [styles.checkInButtonDone, { borderColor: colors.success }]
+                : { backgroundColor: Green[500] },
+              pressed && !hasCheckedIn && styles.buttonPressed,
+              (isCheckingIn || hasCheckedIn) && styles.buttonDisabled,
+            ]}
+            onPress={handleCheckIn}
+            disabled={isCheckingIn || hasCheckedIn}
+          >
+            {isCheckingIn ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons
+                  name={hasCheckedIn ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                  size={20}
+                  color={hasCheckedIn ? colors.success : '#fff'}
+                />
+                <Text style={[
+                  styles.checkInButtonText,
+                  hasCheckedIn && { color: colors.success },
+                ]}>
+                  {hasCheckedIn ? 'Checked In' : 'Check In'}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        ) : null}
+
         {user ? (
           <Pressable
             style={({ pressed }) => [
@@ -709,5 +822,26 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.8,
+  },
+  checkInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  checkInButtonDone: {
+    borderWidth: 2,
+    backgroundColor: 'transparent',
+  },
+  checkInButtonText: {
+    fontSize: Typography.base,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });
