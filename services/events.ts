@@ -214,6 +214,46 @@ export async function fetchEvents({
   };
 }
 
+export interface FetchEventsRAGParams {
+  search: string;
+  since?: string;
+  limit?: number;
+  threshold?: number;
+}
+
+/**
+ * Semantic RAG search using the search-events edge function.
+ * Generates an embedding for the query server-side and returns semantically
+ * matching events sorted by similarity.
+ */
+export async function fetchEventsRAG({
+  search,
+  since,
+  limit = 20,
+  threshold = 0.4,
+}: FetchEventsRAGParams): Promise<FetchEventsResult> {
+  const { data, error } = await supabase.functions.invoke('search-events', {
+    body: {
+      query: search,
+      since: since || new Date().toISOString(),
+      limit,
+      threshold,
+    },
+  });
+
+  if (error) {
+    console.error('RAG search error:', error);
+    throw new Error(`RAG search failed: ${error.message}`);
+  }
+
+  const events = (data?.events ?? []) as EventWithStats[];
+  return {
+    events,
+    total: events.length,
+    hasMore: false, // RAG results are ranked by similarity, no pagination
+  };
+}
+
 export async function fetchEventById(eventId: string): Promise<EventWithStats | null> {
   const { data, error } = await supabase
     .from('events_with_stats')

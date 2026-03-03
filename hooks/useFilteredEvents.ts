@@ -1,13 +1,17 @@
 import { useMemo } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
-import { fetchEvents } from '@/services/events';
+import { fetchEvents, fetchEventsRAG } from '@/services/events';
 
 const ITEMS_PER_PAGE = 20;
 
+// Minimum query length to trigger semantic RAG search
+const RAG_MIN_QUERY_LENGTH = 3;
+
 /**
  * Hook for fetching filtered events with infinite scroll pagination.
- * Used by the list view.
+ * Uses semantic RAG search when a query is provided (length >= 3),
+ * falling back to keyword search for shorter queries or no query.
  */
 export function useFilteredEventsInfinite() {
   const {
@@ -19,6 +23,8 @@ export function useFilteredEventsInfinite() {
     userLocation,
     customDateRange,
   } = useEventsFilterStore();
+
+  const isRAGSearch = debouncedSearch.trim().length >= RAG_MIN_QUERY_LENGTH;
 
   const queryKey = useMemo(
     () => [
@@ -36,8 +42,29 @@ export function useFilteredEventsInfinite() {
 
   const query = useInfiniteQuery({
     queryKey,
-    queryFn: ({ pageParam = 0 }) =>
-      fetchEvents({
+    queryFn: ({ pageParam = 0 }) => {
+      if (isRAGSearch && pageParam === 0) {
+        // Use semantic RAG search for first page when query is long enough
+        return fetchEventsRAG({
+          search: debouncedSearch,
+          since,
+          limit: ITEMS_PER_PAGE,
+        }).catch(() =>
+          // Fallback to keyword search if RAG fails (e.g. edge function not deployed yet)
+          fetchEvents({
+            search: debouncedSearch,
+            sortBy,
+            timeFilter,
+            categoryIds,
+            limit: ITEMS_PER_PAGE,
+            offset: pageParam,
+            since,
+            userLocation,
+            customDateRange,
+          })
+        );
+      }
+      return fetchEvents({
         search: debouncedSearch,
         sortBy,
         timeFilter,
@@ -47,9 +74,12 @@ export function useFilteredEventsInfinite() {
         since,
         userLocation,
         customDateRange,
-      }),
+      });
+    },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
+      // RAG results are a single ranked page with no further pagination
+      if (isRAGSearch) return undefined;
       const totalFetched = allPages.reduce((sum, page) => sum + page.events.length, 0);
       if (lastPage.hasMore) {
         return totalFetched;
@@ -66,6 +96,7 @@ export function useFilteredEventsInfinite() {
   return {
     ...query,
     events,
+    isRAGSearch,
   };
 }
 
