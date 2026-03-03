@@ -62,30 +62,51 @@ async function sleep(ms: number): Promise<void> {
 async function main() {
   console.log("🔍 Fetching events without embeddings...");
 
-  // Get all published events with their stats (for category_name, location fields)
-  const { data: events, error } = await supabase
-    .from("events_with_stats")
-    .select("id, title, description, category_name, location_name, location_address")
-    .eq("is_published", true)
-    .order("event_start_time", { ascending: true });
+  // Paginate through all published events (Supabase default limit is 1000)
+  const allEvents: any[] = [];
+  const PAGE_SIZE = 1000;
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("events_with_stats")
+      .select("id, title, description, category_name, location_name, location_address")
+      .eq("is_published", true)
+      .order("event_start_time", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (error) {
-    console.error("Failed to fetch events:", error);
-    process.exit(1);
+    if (error) {
+      console.error("Failed to fetch events:", error);
+      process.exit(1);
+    }
+    if (!page || page.length === 0) break;
+    allEvents.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
   }
+  const events = allEvents;
 
-  if (!events || events.length === 0) {
+  if (events.length === 0) {
     console.log("No events found.");
     return;
   }
 
-  // Filter to events without embeddings by checking the events table directly
-  const { data: withEmbeddings } = await supabase
-    .from("events")
-    .select("id")
-    .not("embedding", "is", null);
+  // Paginate through all events with embeddings
+  const allEmbeddedIds: string[] = [];
+  from = 0;
+  while (true) {
+    const { data: page } = await supabase
+      .from("events")
+      .select("id")
+      .not("embedding", "is", null)
+      .range(from, from + PAGE_SIZE - 1);
 
-  const embeddedIds = new Set((withEmbeddings ?? []).map((e: { id: string }) => e.id));
+    if (!page || page.length === 0) break;
+    allEmbeddedIds.push(...page.map((e: { id: string }) => e.id));
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  const embeddedIds = new Set(allEmbeddedIds);
   const toEmbed = events.filter((e: { id: string }) => !embeddedIds.has(e.id));
 
   console.log(
