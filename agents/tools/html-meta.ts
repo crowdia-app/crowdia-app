@@ -8,6 +8,7 @@ export interface HtmlMetadata {
   description?: string;
   startDate?: string; // ISO 8601
   endDate?: string;   // ISO 8601
+  bodyText?: string;  // Extracted body text for description fallback
 }
 
 /**
@@ -85,6 +86,25 @@ export function extractHtmlMetadata(html: string): HtmlMetadata {
   if (!meta.startDate) {
     const m = html.match(/<time[^>]+datetime=["']([^"']+)["']/i);
     if (m && /\d{4}-\d{2}-\d{2}/.test(m[1])) meta.startDate = m[1];
+  }
+
+  // Extract meaningful body text for description fallback
+  // Remove scripts, styles, nav, header, footer, aside first
+  const cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<header[\s\S]*?<\/header>/gi, " ")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned.length > 100) {
+    // Take first 800 chars of meaningful body text
+    meta.bodyText = cleaned.substring(0, 800);
   }
 
   return meta;

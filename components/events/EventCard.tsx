@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
-import { formatLocationAddress } from '@/utils/locationDisplay';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -49,7 +48,8 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
 
   const dateInfo = formatDate(event.event_start_time ?? new Date().toISOString());
   const imageUrl = getProxiedImageUrl(event.cover_image_url);
-  const hasValidImage = !!imageUrl;
+  const [imageError, setImageError] = useState(false);
+  const hasValidImage = !!imageUrl && !imageError;
 
   const handleHeartPress = useCallback(() => {
     if (!user) return;
@@ -76,6 +76,7 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
             style={styles.image}
             contentFit="cover"
             transition={200}
+            onError={() => setImageError(true)}
           />
         ) : (
           <LinearGradient
