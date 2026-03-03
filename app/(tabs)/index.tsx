@@ -191,7 +191,7 @@ export default function EventsFeedScreen() {
       <SearchBar
         value={searchQuery}
         onChangeText={handleSearchChange}
-        placeholder="Search events..."
+        placeholder="AI Search..."
         onFilterPress={() => setFilterVisible(true)}
         hasActiveFilters={hasActiveFilters()}
         isRAGSearch={isRAGSearch}
