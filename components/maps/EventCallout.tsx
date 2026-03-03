@@ -17,13 +17,16 @@ export function EventCallout({ event, onPress }: EventCalloutProps) {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
 
+  // Events are always in Palermo (Europe/Rome) — display in local event time
+  const EVENT_TIMEZONE = 'Europe/Rome';
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return { day: '--', month: '---', time: '--:--' };
     const date = new Date(dateString);
     return {
-      day: date.getDate(),
-      month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-      time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      day: date.toLocaleDateString('en-US', { day: 'numeric', timeZone: EVENT_TIMEZONE }),
+      month: date.toLocaleDateString('en-US', { month: 'short', timeZone: EVENT_TIMEZONE }).toUpperCase(),
+      time: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: EVENT_TIMEZONE }),
     };
   };
 

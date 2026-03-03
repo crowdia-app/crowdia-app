@@ -29,6 +29,7 @@ import {
   closeBrowser,
   uploadEventImage,
   preUploadInstagramImages,
+  isGenericImageUrl,
   withRetry,
   SOURCE_RETRY_OPTIONS,
   scrapeInstagramProfile,
@@ -37,6 +38,7 @@ import {
   extractOrganizerNames,
   extractVenueNames,
   extractHtmlMetadata,
+  normalizePalermoDatetime,
   type ExtractedEvent,
   type AgentReport,
   type InstagramPost,
@@ -280,42 +282,58 @@ async function enrichEventsFromDetailPages(
 
     // Only enrich if we're missing key data — avoids unnecessary HTTP requests
     const needsImage = !event.image_url;
-    const needsDescription = !event.description || event.description.length < 50;
+    const needsDescription = !event.description || event.description.length < 100;
     if (!needsImage && !needsDescription) continue;
 
     try {
       const html = await fetchPageDirect(event.detail_url);
       const meta = extractHtmlMetadata(html);
 
-      if (meta.image && needsImage) {
+      if (meta.image && needsImage && !isGenericImageUrl(meta.image)) {
         event.image_url = meta.image;
         await logger.debug(
           `Detail page image for "${event.title.slice(0, 30)}": ${meta.image.slice(0, 60)}`
         );
       }
 
-      if (meta.description && needsDescription) {
-        event.description = meta.description;
+      if (needsDescription) {
+        // Prefer og:description / JSON-LD description
+        if (meta.description && meta.description.length > (event.description?.length ?? 0)) {
+          event.description = meta.description;
+          await logger.debug(
+            `Detail page description for "${event.title.slice(0, 30)}": ${meta.description.slice(0, 60)}`
+          );
+        } else if (
+          (!event.description || event.description.length < 50) &&
+          meta.bodyText && meta.bodyText.length > 80
+        ) {
+          // Fall back to extracted body text excerpt
+          event.description = meta.bodyText.slice(0, 500);
+          await logger.debug(
+            `Body text description for "${event.title.slice(0, 30)}": ${event.description.slice(0, 60)}`
+          );
+        }
       }
 
       // Prefer the detail page date — it's the authoritative source for this event
       if (meta.startDate) {
-        const detailDate = new Date(meta.startDate);
-        if (!isNaN(detailDate.getTime())) {
-          // Preserve extracted time component if detail page only has a date
-          const timeComponent = event.start_time.includes("T")
-            ? event.start_time.split("T")[1]
-            : "21:00:00";
-          const newStartTime = meta.startDate.includes("T")
-            ? meta.startDate
-            : `${meta.startDate}T${timeComponent}`;
-          if (newStartTime !== event.start_time) {
-            await logger.debug(
-              `Updated date for "${event.title.slice(0, 30)}" via detail page: ${event.start_time} → ${newStartTime}`
-            );
-            event.start_time = newStartTime;
-          }
-          if (meta.endDate) event.end_time = meta.endDate;
+        // Preserve extracted time component if detail page only has a date
+        const timeComponent = event.start_time.includes("T")
+          ? event.start_time.split("T")[1].replace(/[+-]\d{2}:\d{2}$/, "").replace(/Z$/, "")
+          : "21:00:00";
+        const rawStartTime = meta.startDate.includes("T")
+          ? meta.startDate
+          : `${meta.startDate}T${timeComponent}`;
+        const normalizedStart = normalizePalermoDatetime(rawStartTime);
+        if (normalizedStart && normalizedStart !== event.start_time) {
+          await logger.debug(
+            `Updated date for "${event.title.slice(0, 30)}" via detail page: ${event.start_time} → ${normalizedStart}`
+          );
+          event.start_time = normalizedStart;
+        }
+        if (meta.endDate) {
+          const normalizedEnd = normalizePalermoDatetime(meta.endDate);
+          if (normalizedEnd) event.end_time = normalizedEnd;
         }
       }
     } catch {
@@ -741,6 +759,19 @@ export async function runExtractionAgent(
             console.log(`    Image: ${hasImage ? event.image_url?.substring(0, 50) + "..." : "(none)"}`);
           }
 
+          // Strip generic/placeholder images before uploading.
+          // These are site-wide images (placeholders, logos, listing banners)
+          // that the LLM may have extracted from a listing page's og:image tag.
+          // Keeping them would make multiple different events share the same image.
+          for (const event of events) {
+            if (event.image_url && isGenericImageUrl(event.image_url)) {
+              await logger.debug(
+                `Cleared generic image for "${event.title.substring(0, 30)}...": ${event.image_url.substring(0, 60)}`
+              );
+              event.image_url = undefined;
+            }
+          }
+
           // Pre-upload website images to Supabase storage (similar to Instagram)
           // This prevents external URLs from breaking (403/404) before event creation
           for (const event of events) {
@@ -749,7 +780,7 @@ export async function runExtractionAgent(
                 // Use a temporary event ID for storage (we'll update the real event later)
                 const tempEventId = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}`;
                 const uploadResult = await uploadEventImage(tempEventId, event.image_url);
-                
+
                 if (uploadResult.success && uploadResult.publicUrl) {
                   // Replace external URL with storage URL
                   const oldUrl = event.image_url;
@@ -816,6 +847,18 @@ export async function runExtractionAgent(
     // Process collected events
     for (const { extracted, source } of allEvents) {
       try {
+        // Normalize dates: LLM returns naive datetimes assumed to be local
+        // Palermo time (Europe/Rome). Convert to UTC ISO strings so they are
+        // stored correctly in PostgreSQL with the right timezone offset.
+        const normalizedStart = normalizePalermoDatetime(extracted.start_time);
+        if (normalizedStart) {
+          extracted.start_time = normalizedStart;
+        }
+        if (extracted.end_time) {
+          const normalizedEnd = normalizePalermoDatetime(extracted.end_time);
+          if (normalizedEnd) extracted.end_time = normalizedEnd;
+        }
+
         // Skip events in the past
         const eventDate = new Date(extracted.start_time);
         if (eventDate < new Date()) {

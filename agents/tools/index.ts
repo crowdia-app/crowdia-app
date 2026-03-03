@@ -6,7 +6,7 @@ export { isFlareSolverrAvailable, fetchWithFlareSolverr } from "./flaresolverr";
 export { geocodeAddress, type GeocodingResult } from "./geocoding";
 export { sendSlackMessage, sendAgentReport, alertError, type AgentReport } from "./slack";
 export { fetchRAEvents, isRAUrl } from "./ra-fetcher";
-export { uploadEventImage, isStoredInBucket, preUploadInstagramImages } from "./image-storage";
+export { uploadEventImage, isStoredInBucket, preUploadInstagramImages, isGenericImageUrl, isValidEventImageUrl } from "./image-storage";
 export { withRetry, isRetryableError, SOURCE_RETRY_OPTIONS, type RetryOptions } from "./retry";
 export { scrapeInstagramProfile, isApifyConfigured, type InstagramPost } from "./apify";
 export {
@@ -17,3 +17,4 @@ export {
   type ExtractedLinks,
 } from "./link-extractor";
 export { extractHtmlMetadata, type HtmlMetadata } from "./html-meta";
+export { normalizePalermoDatetime } from "./date-utils";

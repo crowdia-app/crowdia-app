@@ -16,6 +16,7 @@ import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
+import { formatLocationAddress } from '@/utils/locationDisplay';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -24,13 +25,17 @@ interface EventCardProps {
   onPress?: () => void;
 }
 
+// Events are always in Palermo (Europe/Rome) — display in local event time
+// so the date/time shown matches what attendees see on posters and tickets.
+const EVENT_TIMEZONE = 'Europe/Rome';
+
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
   return {
-    day: date.getDate(),
-    month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-    time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-    weekday: date.toLocaleDateString('en-US', { weekday: 'short' }),
+    day: parseInt(date.toLocaleDateString('en-US', { day: 'numeric', timeZone: EVENT_TIMEZONE }), 10),
+    month: date.toLocaleDateString('en-US', { month: 'short', timeZone: EVENT_TIMEZONE }).toUpperCase(),
+    time: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: EVENT_TIMEZONE }),
+    weekday: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: EVENT_TIMEZONE }),
   };
 };
 

@@ -9,9 +9,11 @@ import {
   Linking,
   Share,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,7 +21,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { fetchEventById } from '@/services/events';
-import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
+import { Colors, Spacing, BorderRadius, Typography, Magenta, Green } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
@@ -29,22 +32,59 @@ import { useAuthStore } from '@/stores/authStore';
 
 const HERO_HEIGHT = 320;
 
+// Events are always in Palermo (Europe/Rome) — display in local event time
+// so the date/time shown matches what attendees see on posters and tickets.
+const EVENT_TIMEZONE = 'Europe/Rome';
+
 const formatFullDate = (dateString: string) => {
   const date = new Date(dateString);
   return {
-    weekday: date.toLocaleDateString('en-US', { weekday: 'long' }),
+    weekday: date.toLocaleDateString('en-US', { weekday: 'long', timeZone: EVENT_TIMEZONE }),
     date: date.toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: EVENT_TIMEZONE,
     }),
-    time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-    day: date.getDate(),
-    month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+    time: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: EVENT_TIMEZONE }),
+    day: parseInt(date.toLocaleDateString('en-US', { day: 'numeric', timeZone: EVENT_TIMEZONE }), 10),
+    month: date.toLocaleDateString('en-US', { month: 'short', timeZone: EVENT_TIMEZONE }).toUpperCase(),
   };
 };
 
 const numberFormatter = new Intl.NumberFormat();
+
+const CHECK_IN_POINTS = 10;
+
+/** Returns true if the event is happening today or is currently ongoing */
+function isEventTodayOrOngoing(startTime: string, endTime?: string | null): boolean {
+  const now = new Date();
+  const start = new Date(startTime);
+  const end = endTime ? new Date(endTime) : null;
+
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  // Currently ongoing: started and hasn't ended yet
+  if (end && now >= start && now <= end) return true;
+
+  // Event starts today
+  if (start >= todayStart && start < todayEnd) return true;
+
+  return false;
+}
+
+/** Truncate URL for display (strip protocol, trim long paths) */
+function displayUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const display = parsed.hostname + (parsed.pathname !== '/' ? parsed.pathname : '');
+    return display.length > 40 ? display.substring(0, 37) + '...' : display;
+  } catch {
+    return url.length > 40 ? url.substring(0, 37) + '...' : url;
+  }
+}
 
 // Header button component extracted outside render to avoid remount cycles
 function HeaderButton({ onPress, icon, size = 24 }: { onPress: () => void; icon: string; size?: number }) {
@@ -68,14 +108,50 @@ export default function EventDetailScreen() {
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
 
-  const { user } = useAuthStore();
+  const { user, refreshProfile } = useAuthStore();
   const { isInterested, toggleInterest } = useInterestsStore();
   const interested = isInterested(id!);
+  const queryClient = useQueryClient();
 
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['event', id],
     queryFn: () => fetchEventById(id!),
     enabled: !!id,
+  });
+
+  // Check if the current user has already checked in to this event
+  const { data: existingCheckIn, refetch: refetchCheckIn } = useQuery({
+    queryKey: ['check-in', id, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !id) return null;
+      const { data } = await supabase
+        .from('event_check_ins')
+        .select('id, checked_in_at')
+        .eq('event_id', id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id && !!id,
+  });
+
+  const checkInMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id || !id) throw new Error('Must be signed in to check in');
+      const { error } = await supabase
+        .from('event_check_ins')
+        .insert({
+          user_id: user.id,
+          event_id: id,
+          checked_in_at: new Date().toISOString(),
+        });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await refetchCheckIn();
+      queryClient.invalidateQueries({ queryKey: ['event', id] });
+      await refreshProfile();
+    },
   });
 
   const imageUrl = getProxiedImageUrl(event?.cover_image_url);

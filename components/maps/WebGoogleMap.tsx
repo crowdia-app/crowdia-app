@@ -294,6 +294,7 @@ function EventInfoCard({ event, onClick }: EventInfoCardProps) {
   const imageUrl = getProxiedImageUrl(event.cover_image_url);
   const hasValidImage = !!imageUrl;
 
+  // Events are always in Palermo (Europe/Rome) — display in local event time
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -302,6 +303,7 @@ function EventInfoCard({ event, onClick }: EventInfoCardProps) {
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
+      timeZone: 'Europe/Rome',
     });
   };
 
