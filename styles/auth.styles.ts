@@ -172,6 +172,20 @@ export const createAuthStyles = (isDark: boolean) => {
       fontSize: Typography.md,
       fontWeight: '600',
     },
+    appleButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      backgroundColor: isDark ? '#fff' : '#000',
+      padding: Spacing.md,
+      borderRadius: BorderRadius.md,
+    },
+    appleButtonText: {
+      color: isDark ? '#000' : '#fff',
+      fontSize: Typography.md,
+      fontWeight: '600',
+    },
     divider: {
       flexDirection: 'row',
       alignItems: 'center',

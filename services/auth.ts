@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { AuthError } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 export interface SignUpInput {
   email: string;
@@ -144,6 +145,32 @@ export class AuthService {
       } else if (result.type === 'cancel' || result.type === 'dismiss') {
         throw new Error('Google sign-in was cancelled');
       }
+    }
+  }
+
+  static async signInWithApple(): Promise<void> {
+    if (Platform.OS === 'web') {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo: 'https://app.crowdia.ai' },
+      });
+      if (error) throw error;
+    } else {
+      // Native iOS Sign In with Apple
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) throw new Error('No identity token from Apple');
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+      if (error) throw error;
     }
   }
 

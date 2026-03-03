@@ -47,6 +47,7 @@ export default function RootLayout() {
               organizerProfile,
               isLoading: false,
               isGoogleSigningIn: false,
+              isAppleSigningIn: false,
             });
             router.replace('/(tabs)');
           } catch {

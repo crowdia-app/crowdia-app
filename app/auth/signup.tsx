@@ -7,6 +7,7 @@ import { createAuthStyles } from '@/styles/auth.styles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { GoogleIcon } from '@/components/ui/google-icon';
+import { AppleIcon } from '@/components/ui/apple-icon';
 
 // On web, wrap form fields in a <form> so browsers recognize it for autofill
 function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
@@ -26,7 +27,7 @@ export default function SignupScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const styles = createAuthStyles(colorScheme === 'dark');
-  const { signUp, isSigningUp, signInWithGoogle, isGoogleSigningIn, error, clearError } = useAuthStore();
+  const { signUp, isSigningUp, signInWithGoogle, isGoogleSigningIn, signInWithApple, isAppleSigningIn, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -47,7 +48,19 @@ export default function SignupScreen() {
     }
   };
 
-  const isAnyLoading = isSigningUp || isGoogleSigningIn;
+  const handleAppleSignIn = async () => {
+    clearError();
+    try {
+      await signInWithApple();
+      if (Platform.OS !== 'web') {
+        router.replace('/(tabs)');
+      }
+    } catch {
+      // Error displayed via store's error state
+    }
+  };
+
+  const isAnyLoading = isSigningUp || isGoogleSigningIn || isAppleSigningIn;
 
   const handleSignup = async () => {
     setValidationError(null);
@@ -219,6 +232,35 @@ export default function SignupScreen() {
                 </>
               )}
             </Pressable>
+
+            {Platform.OS !== 'android' && (
+              <>
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.appleButton,
+                    isAnyLoading && styles.buttonDisabled,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={handleAppleSignIn}
+                  disabled={isAnyLoading}
+                >
+                  {isAppleSigningIn ? (
+                    <ActivityIndicator color={colorScheme === 'dark' ? '#000' : '#fff'} />
+                  ) : (
+                    <>
+                      <AppleIcon size={20} color={colorScheme === 'dark' ? '#000' : '#fff'} />
+                      <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                    </>
+                  )}
+                </Pressable>
+              </>
+            )}
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />

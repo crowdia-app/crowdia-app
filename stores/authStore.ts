@@ -15,12 +15,14 @@ interface AuthState {
   isSigningUp: boolean;
   isLoggingIn: boolean;
   isGoogleSigningIn: boolean;
+  isAppleSigningIn: boolean;
 
   // Actions
   initialize: () => Promise<void>;
   signUp: (email: string, password: string, displayName?: string, username?: string, isOrganizer?: boolean, organizationName?: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
@@ -44,6 +46,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isSigningUp: false,
   isLoggingIn: false,
   isGoogleSigningIn: false,
+  isAppleSigningIn: false,
 
   initialize: async () => {
     try {
@@ -195,6 +198,43 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ isGoogleSigningIn: false });
       } else {
         set({ error: msg, isGoogleSigningIn: false });
+        throw error;
+      }
+    }
+  },
+
+  signInWithApple: async () => {
+    set({ isAppleSigningIn: true, error: null });
+    try {
+      await AuthService.signInWithApple();
+      // For web, the page will redirect. For native, session is set after signInWithIdToken.
+      const user = await AuthService.getCurrentUser();
+      if (user) {
+        let [userProfile, organizerProfile] = await Promise.all([
+          AuthService.getUserProfile(user.id),
+          AuthService.getOrganizerProfile(user.id),
+        ]);
+
+        // Apple users are email-verified -- award confirmation points if not yet awarded
+        if (userProfile && !userProfile.email_confirmed_points_awarded) {
+          userProfile = await AuthService.awardEmailConfirmationPoints(user.id);
+          if (userProfile?.referred_by) {
+            await AuthService.awardReferralPoints(user.id);
+          }
+        }
+
+        set({ user, userProfile, organizerProfile, isAppleSigningIn: false });
+      } else {
+        // Web redirect case
+        set({ isAppleSigningIn: false });
+      }
+    } catch (error) {
+      const msg = getErrorMessage(error);
+      // Don't surface cancellation as an error
+      if (msg.includes('canceled') || msg.includes('cancelled') || msg.includes('ERR_REQUEST_CANCELED')) {
+        set({ isAppleSigningIn: false });
+      } else {
+        set({ error: msg, isAppleSigningIn: false });
         throw error;
       }
     }
