@@ -3,11 +3,16 @@
  * Uses wsrv.nl (free image proxy service) for blocked domains
  */
 
-// Domains that are known to block cross-origin requests
+// Domains that are known to block cross-origin requests or hotlink images
 const BLOCKED_DOMAINS = [
   'palermotoday.it',
   'citynews-palermotoday.stgy.ovh',
   'citynews',
+  'teatro.it',
+  'orchestrasinfonicasiciliana.it',
+  'teatrobiondo.it',
+  'teatromassimo.it',
+  'teatrogoldenpalermo.it',
 ];
 
 /**
