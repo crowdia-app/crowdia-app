@@ -67,7 +67,7 @@ export default function MapScreen() {
       <SearchBar
         value={searchQuery}
         onChangeText={handleSearchChange}
-        placeholder="Search events..."
+        placeholder="AI Search..."
         onFilterPress={() => setFilterVisible(true)}
         hasActiveFilters={hasActiveFilters()}
       />
