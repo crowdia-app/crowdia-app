@@ -37,39 +37,33 @@ export function SearchBar({
   const sparkleAnim = useRef(new Animated.Value(0)).current;
   const badgeOpacity = useRef(new Animated.Value(0)).current;
 
+  // Always animate the sparkle
   useEffect(() => {
-    if (isRAGSearch) {
-      // Sparkle rotation loop
-      Animated.loop(
-        Animated.timing(sparkleAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        })
-      ).start();
-      // Badge fade in
-      Animated.spring(badgeOpacity, {
+    Animated.loop(
+      Animated.timing(sparkleAnim, {
         toValue: 1,
+        duration: 2400,
         useNativeDriver: true,
-      }).start();
-    } else {
-      sparkleAnim.setValue(0);
-      Animated.timing(badgeOpacity, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-    }
+      })
+    ).start();
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(badgeOpacity, {
+      toValue: isRAGSearch ? 1 : 0,
+      duration: isRAGSearch ? 200 : 150,
+      useNativeDriver: true,
+    }).start();
   }, [isRAGSearch]);
 
-  const sparkleRotate = sparkleAnim.interpolate({
-    inputRange: [0, 0.25, 0.5, 0.75, 1],
-    outputRange: ['0deg', '15deg', '0deg', '-15deg', '0deg'],
+  const sparkleScale = sparkleAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.8, 1.15, 0.8],
   });
 
-  const sparkleScale = sparkleAnim.interpolate({
-    inputRange: [0, 0.25, 0.5, 0.75, 1],
-    outputRange: [1, 1.2, 1, 1.15, 1],
+  const sparkleOpacity = sparkleAnim.interpolate({
+    inputRange: [0, 0.3, 0.7, 1],
+    outputRange: [0.5, 1, 1, 0.5],
   });
 
   const handleClear = useCallback(() => {
@@ -85,25 +79,24 @@ export function SearchBar({
           isFocused && { borderColor: Magenta[500], borderWidth: 1 },
           isRAGSearch && { borderColor: Magenta[400], borderWidth: 1 },
         ]}>
-          {isRAGSearch ? (
-            <Animated.Text
-              style={[
-                styles.searchIcon,
-                {
-                  transform: [{ rotate: sparkleRotate }, { scale: sparkleScale }],
-                },
-              ]}
-            >
-              ✨
-            </Animated.Text>
-          ) : (
+          <View style={styles.iconWrapper}>
             <Ionicons
               name="search"
               size={20}
-              color={isFocused ? colors.primary : colors.textMuted}
-              style={styles.searchIcon}
+              color={isFocused || isRAGSearch ? Magenta[500] : colors.textMuted}
             />
-          )}
+            <Animated.Text
+              style={[
+                styles.sparkle,
+                {
+                  opacity: sparkleOpacity,
+                  transform: [{ scale: sparkleScale }],
+                },
+              ]}
+            >
+              ✦
+            </Animated.Text>
+          </View>
           <TextInput
             style={[styles.input, { color: colors.text }, webInputStyle]}
             value={value}
@@ -163,9 +156,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  searchIcon: {
+  iconWrapper: {
     marginRight: Spacing.sm,
-    fontSize: 18,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sparkle: {
+    position: 'absolute',
+    top: -3,
+    right: -4,
+    fontSize: 10,
+    color: Magenta[400],
   },
   input: {
     flex: 1,
