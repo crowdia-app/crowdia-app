@@ -32,7 +32,7 @@ export default function EventsFeedScreen() {
 
   const { debouncedSearch, hasActiveFilters } = useEventsFilterStore();
   const [filterVisible, setFilterVisible] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('map');
 
   const { searchQuery, handleSearchChange } = useDebouncedSearch();
 
