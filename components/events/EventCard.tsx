@@ -1,19 +1,23 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
+import { useInterestsStore } from '@/stores/interestsStore';
+import { useAuthStore } from '@/stores/authStore';
 
 interface EventCardProps {
   event: EventWithStats;
@@ -34,9 +38,21 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
 
+  const { user } = useAuthStore();
+  const { isInterested, toggleInterest } = useInterestsStore();
+  const interested = isInterested(event.id!);
+
   const dateInfo = formatDate(event.event_start_time ?? new Date().toISOString());
   const imageUrl = getProxiedImageUrl(event.cover_image_url);
   const hasValidImage = !!imageUrl;
+
+  const handleHeartPress = useCallback(() => {
+    if (!user) return;
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    toggleInterest(user.id, event.id!);
+  }, [user, event.id, toggleInterest]);
 
   return (
     <Pressable
@@ -84,6 +100,23 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
               {dateInfo.time}
             </Text>
           </View>
+          {/* Heart button -- only show when logged in */}
+          {user ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.heartButton,
+                pressed && styles.heartButtonPressed,
+              ]}
+              onPress={handleHeartPress}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name={interested ? 'heart' : 'heart-outline'}
+                size={20}
+                color={interested ? Magenta[500] : colors.textMuted}
+              />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Title */}
@@ -175,6 +208,12 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: Typography.xs,
+  },
+  heartButton: {
+    padding: Spacing.xs,
+  },
+  heartButtonPressed: {
+    opacity: 0.6,
   },
   title: {
     fontSize: Typography.base,

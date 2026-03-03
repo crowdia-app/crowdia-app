@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,33 @@ import {
   Alert,
   Platform,
   useColorScheme,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
+import { useInterestsStore } from '@/stores/interestsStore';
 import { useRouter } from 'expo-router';
 import { Colors, Magenta, Charcoal, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
+import { EventCard } from '@/components/events/EventCard';
 
 const numberFormatter = new Intl.NumberFormat();
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, userProfile, organizerProfile, logout } = useAuthStore();
+  const { interestedEvents, isLoading: interestsLoading, loadInterestedEvents } = useInterestsStore();
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
+
+  // Load full event data when profile tab is opened
+  useEffect(() => {
+    if (user) {
+      loadInterestedEvents(user.id);
+    }
+  }, [user, loadInterestedEvents]);
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
@@ -150,6 +161,15 @@ export default function ProfileScreen() {
           <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: Magenta[500] }]}>
+              {numberFormatter.format(interestedEvents.length)}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              Saved
+            </Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: Magenta[500] }]}>
               {numberFormatter.format(userProfile?.check_ins_count || 0)}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
@@ -239,6 +259,38 @@ export default function ProfileScreen() {
             </View>
           </View>
         ) : null}
+
+        {/* Saved Events */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+            SAVED EVENTS
+          </Text>
+          {interestsLoading ? (
+            <View style={styles.interestsLoader}>
+              <ActivityIndicator size="small" color={Magenta[500]} />
+            </View>
+          ) : interestedEvents.length === 0 ? (
+            <View style={[styles.emptyInterests, { backgroundColor: colors.card }]}>
+              <Ionicons name="heart-outline" size={32} color={colors.textMuted} />
+              <Text style={[styles.emptyInterestsText, { color: colors.textSecondary }]}>
+                No saved events yet
+              </Text>
+              <Text style={[styles.emptyInterestsSub, { color: colors.textMuted }]}>
+                Tap the heart on any event to save it here
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.interestedEventsList}>
+              {interestedEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onPress={() => router.push(`/event/${event.id}`)}
+                />
+              ))}
+            </View>
+          )}
+        </View>
 
         {/* Points Breakdown */}
         <View style={styles.section}>
@@ -528,6 +580,29 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
+  },
+
+  // Saved Events
+  interestsLoader: {
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
+  },
+  emptyInterests: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xxl,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  emptyInterestsText: {
+    fontSize: Typography.base,
+    fontWeight: '600',
+  },
+  emptyInterestsSub: {
+    fontSize: Typography.sm,
+    textAlign: 'center',
+  },
+  interestedEventsList: {
+    marginHorizontal: -Spacing.lg,
   },
 
   // Logout

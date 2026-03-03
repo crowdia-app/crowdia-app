@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,8 @@ import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { MapSection } from '@/components/maps/MapSection';
+import { useInterestsStore } from '@/stores/interestsStore';
+import { useAuthStore } from '@/stores/authStore';
 
 const HERO_HEIGHT = 320;
 
@@ -66,6 +68,10 @@ export default function EventDetailScreen() {
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
 
+  const { user } = useAuthStore();
+  const { isInterested, toggleInterest } = useInterestsStore();
+  const interested = isInterested(id!);
+
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['event', id],
     queryFn: () => fetchEventById(id!),
@@ -74,6 +80,14 @@ export default function EventDetailScreen() {
 
   const imageUrl = getProxiedImageUrl(event?.cover_image_url);
   const hasValidImage = !!imageUrl;
+
+  const handleInterested = useCallback(() => {
+    if (!user || !id) return;
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    toggleInterest(user.id, id);
+  }, [user, id, toggleInterest]);
 
   const handleBack = () => {
     if (Platform.OS !== 'web') {
@@ -339,24 +353,28 @@ export default function EventDetailScreen() {
           borderTopColor: colors.divider,
         }
       ]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.interestedButton,
-            { borderColor: Magenta[500] },
-            pressed && styles.buttonPressed
-          ]}
-          onPress={() => {
-            if (Platform.OS !== 'web') {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
-            // TODO: Implement interested functionality
-          }}
-        >
-          <Ionicons name="heart-outline" size={20} color={Magenta[500]} />
-          <Text style={[styles.interestedButtonText, { color: Magenta[500] }]}>
-            Interested
-          </Text>
-        </Pressable>
+        {user ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.interestedButton,
+              {
+                borderColor: Magenta[500],
+                backgroundColor: interested ? Magenta[500] + '15' : 'transparent',
+              },
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={handleInterested}
+          >
+            <Ionicons
+              name={interested ? 'heart' : 'heart-outline'}
+              size={20}
+              color={Magenta[500]}
+            />
+            <Text style={[styles.interestedButtonText, { color: Magenta[500] }]}>
+              {interested ? 'Saved' : 'Interested'}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {event.external_ticket_url ? (
           <Pressable
