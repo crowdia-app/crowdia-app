@@ -410,9 +410,20 @@ export default function ProfileScreen() {
 
         {/* Points Breakdown */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            POINTS EARNED
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              POINTS EARNED
+            </Text>
+            <Pressable
+              style={styles.leaderboardLink}
+              onPress={() => router.push('/leaderboard')}
+            >
+              <Ionicons name="trophy-outline" size={14} color={Magenta[500]} />
+              <Text style={[styles.leaderboardLinkText, { color: Magenta[500] }]}>
+                Leaderboard
+              </Text>
+            </Pressable>
+          </View>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.pointsRow}>
               <View style={styles.pointsRowLeft}>
@@ -451,8 +462,85 @@ export default function ProfileScreen() {
                 </View>
               </>
             ) : null}
+            {(userProfile?.check_ins_count ?? 0) > 0 ? (
+              <>
+                <View style={[styles.cardDivider, { backgroundColor: colors.divider }]} />
+                <View style={styles.pointsRow}>
+                  <View style={styles.pointsRowLeft}>
+                    <Ionicons name="location-outline" size={18} color={Magenta[500]} />
+                    <Text style={[styles.pointsRowText, { color: colors.text }]}>
+                      Check-ins ({userProfile!.check_ins_count})
+                    </Text>
+                  </View>
+                  <Text style={[styles.pointsRowValue, { color: Magenta[500] }]}>
+                    +{(userProfile!.check_ins_count ?? 0) * 25}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+            {interestedEvents.length > 0 ? (
+              <>
+                <View style={[styles.cardDivider, { backgroundColor: colors.divider }]} />
+                <View style={styles.pointsRow}>
+                  <View style={styles.pointsRowLeft}>
+                    <Ionicons name="heart-outline" size={18} color={Magenta[500]} />
+                    <Text style={[styles.pointsRowText, { color: colors.text }]}>
+                      Saved Events ({interestedEvents.length})
+                    </Text>
+                  </View>
+                  <Text style={[styles.pointsRowValue, { color: Magenta[500] }]}>
+                    +{interestedEvents.length * 5}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+            {userProfile?.referral_points_awarded ? (
+              <>
+                <View style={[styles.cardDivider, { backgroundColor: colors.divider }]} />
+                <View style={styles.pointsRow}>
+                  <View style={styles.pointsRowLeft}>
+                    <Ionicons name="people-outline" size={18} color={Magenta[500]} />
+                    <Text style={[styles.pointsRowText, { color: colors.text }]}>
+                      Referral Bonus
+                    </Text>
+                  </View>
+                  <Text style={[styles.pointsRowValue, { color: Magenta[500] }]}>+100</Text>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
+
+        {/* Referral Code */}
+        {userProfile?.referral_code ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              REFER A FRIEND
+            </Text>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <View style={styles.cardRow}>
+                <Ionicons name="people-outline" size={20} color={Magenta[500]} />
+                <View style={styles.cardRowContent}>
+                  <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                    Your referral code
+                  </Text>
+                  <Text style={[styles.referralCode, { color: colors.text }]}>
+                    {userProfile.referral_code}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.cardDivider, { backgroundColor: colors.divider }]} />
+              <View style={styles.cardRow}>
+                <Ionicons name="gift-outline" size={20} color={colors.textSecondary} />
+                <View style={styles.cardRowContent}>
+                  <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                    You earn +100 pts when a friend signs up with your code and confirms their email
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         {/* Legal Section */}
         <View style={styles.section}>
@@ -720,12 +808,35 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: Spacing.xl,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+  },
   sectionTitle: {
     fontSize: Typography.xs,
     fontWeight: '600',
     letterSpacing: 0.5,
     marginBottom: Spacing.sm,
     marginLeft: Spacing.xs,
+  },
+  leaderboardLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+  },
+  leaderboardLinkText: {
+    fontSize: Typography.xs,
+    fontWeight: '600',
+  },
+  referralCode: {
+    fontSize: Typography.xl,
+    fontWeight: '700',
+    letterSpacing: 2,
+    fontVariant: ['tabular-nums'],
   },
 
   // Cards

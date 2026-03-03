@@ -922,6 +922,9 @@ export type Database = {
           is_admin: boolean
           points: number | null
           profile_image_url: string | null
+          referral_code: string | null
+          referred_by: string | null
+          referral_points_awarded: boolean | null
           updated_at: string | null
           username: string | null
         }
@@ -935,6 +938,9 @@ export type Database = {
           is_admin?: boolean
           points?: number | null
           profile_image_url?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
+          referral_points_awarded?: boolean | null
           updated_at?: string | null
           username?: string | null
         }
@@ -948,6 +954,9 @@ export type Database = {
           is_admin?: boolean
           points?: number | null
           profile_image_url?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
+          referral_points_awarded?: boolean | null
           updated_at?: string | null
           username?: string | null
         }
@@ -1009,6 +1018,18 @@ export type Database = {
       }
     }
     Views: {
+      leaderboard: {
+        Row: {
+          check_ins_count: number | null
+          display_name: string | null
+          id: string | null
+          points: number | null
+          profile_image_url: string | null
+          rank: number | null
+          username: string | null
+        }
+        Relationships: []
+      }
       events_with_stats: {
         Row: {
           category_id: string | null

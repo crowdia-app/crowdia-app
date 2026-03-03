@@ -87,6 +87,7 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding/organizer" />
           <Stack.Screen name="auth/login" />
           <Stack.Screen name="auth/signup" />
+          <Stack.Screen name="leaderboard" options={{ animation: 'slide_from_right' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

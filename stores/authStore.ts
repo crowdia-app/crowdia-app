@@ -65,6 +65,10 @@ export const useAuthStore = create<AuthState>((set) => ({
             user.id,
             userProfile.points
           );
+          // Award referral points to the referrer if this user was referred
+          if (userProfile?.referred_by) {
+            await AuthService.awardReferralPoints(user.id);
+          }
         }
 
         set({
@@ -139,6 +143,10 @@ export const useAuthStore = create<AuthState>((set) => ({
             authData.user.id,
             userProfile.points
           );
+          // Award referral points to the referrer if this user was referred
+          if (userProfile?.referred_by) {
+            await AuthService.awardReferralPoints(authData.user.id);
+          }
         }
 
         set({

@@ -35,6 +35,9 @@ const MAPPING = {
   'wand.and.stars': 'auto-fix-high',
   'bolt.fill': 'bolt',
   'doc.on.doc': 'content-copy',
+  'heart.fill': 'favorite',
+  'heart': 'favorite-border',
+  'trophy.fill': 'emoji-events',
 } as IconMapping;
 
 /**

@@ -157,6 +157,58 @@ export class AuthService {
     }
   }
 
+  static async awardReferralPoints(referredUserId: string) {
+    const { error } = await supabase.rpc('award_referral_points', {
+      referred_user_id: referredUserId,
+    });
+    if (error) console.error('Failed to award referral points:', error);
+  }
+
+  static async applyReferralCode(userId: string, referralCode: string) {
+    // Look up the referrer by code
+    const { data: referrer, error: lookupError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('referral_code', referralCode.toUpperCase())
+      .maybeSingle();
+
+    if (lookupError || !referrer) {
+      throw new Error('Invalid referral code');
+    }
+
+    if (referrer.id === userId) {
+      throw new Error('You cannot use your own referral code');
+    }
+
+    // Link the referrer
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ referred_by: referrer.id })
+      .eq('id', userId)
+      .is('referred_by', null); // Only set once
+
+    if (updateError) throw updateError;
+
+    return referrer.id;
+  }
+
+  static async fetchLeaderboard(limit = 50) {
+    const { data, error } = await supabase
+      .from('leaderboard')
+      .select('rank, display_name, username, profile_image_url, points, check_ins_count')
+      .limit(limit);
+
+    if (error) throw error;
+    return (data ?? []) as Array<{
+      rank: number;
+      display_name: string | null;
+      username: string | null;
+      profile_image_url: string | null;
+      points: number | null;
+      check_ins_count: number | null;
+    }>;
+  }
+
   static async verifyOrganizerEmail(token: string, type: string) {
     const { data, error } = await supabase.auth.verifyOtp({
       token_hash: token,
