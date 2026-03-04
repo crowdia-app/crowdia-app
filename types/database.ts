@@ -39,6 +39,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      affiliate_clicks: {
+        Row: {
+          id: string
+          user_id: string | null
+          event_id: string
+          url: string
+          click_type: 'ticket' | 'event_url'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          event_id: string
+          url: string
+          click_type: 'ticket' | 'event_url'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          event_id?: string
+          url?: string
+          click_type?: 'ticket' | 'event_url'
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_clicks_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_clicks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_config: {
         Row: {
           description: string | null
@@ -974,6 +1016,8 @@ export type Database = {
           email_confirmed_points_awarded: boolean | null
           id: string
           is_admin: boolean
+          is_premium: boolean
+          premium_expires_at: string | null
           points: number | null
           profile_image_url: string | null
           referral_code: string | null
@@ -990,6 +1034,8 @@ export type Database = {
           email_confirmed_points_awarded?: boolean | null
           id: string
           is_admin?: boolean
+          is_premium?: boolean
+          premium_expires_at?: string | null
           points?: number | null
           profile_image_url?: string | null
           referral_code?: string | null
@@ -1006,6 +1052,8 @@ export type Database = {
           email_confirmed_points_awarded?: boolean | null
           id?: string
           is_admin?: boolean
+          is_premium?: boolean
+          premium_expires_at?: string | null
           points?: number | null
           profile_image_url?: string | null
           referral_code?: string | null

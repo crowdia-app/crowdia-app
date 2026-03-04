@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { fetchEventById } from '@/services/events';
+import { trackAffiliateClick } from '@/services/affiliate';
 import { supabase } from '@/lib/supabase';
 import { Colors, Spacing, BorderRadius, Typography, Magenta, Green } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
@@ -194,6 +195,12 @@ export default function EventDetailScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    trackAffiliateClick({
+      userId: user?.id ?? null,
+      eventId: event.id,
+      url: event.external_ticket_url,
+      clickType: 'ticket',
+    });
     Linking.openURL(event.external_ticket_url);
   };
 
@@ -226,12 +233,20 @@ export default function EventDetailScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    if (event?.id) {
+      trackAffiliateClick({
+        userId: user?.id ?? null,
+        eventId: event.id,
+        url,
+        clickType: 'event_url',
+      });
+    }
     if (Platform.OS === 'web') {
       window.open(url, '_blank');
     } else {
       Linking.openURL(url);
     }
-  }, []);
+  }, [event?.id, user?.id]);
 
   const handleCheckIn = async () => {
     if (!user) {
@@ -582,7 +597,15 @@ export default function EventDetailScreen() {
               { backgroundColor: Magenta[500] },
               pressed && styles.buttonPressed
             ]}
-            onPress={() => Linking.openURL(event.event_url!)}
+            onPress={() => {
+              trackAffiliateClick({
+                userId: user?.id ?? null,
+                eventId: event.id,
+                url: event.event_url!,
+                clickType: 'event_url',
+              });
+              Linking.openURL(event.event_url!);
+            }}
           >
             <Ionicons name="open-outline" size={20} color="#fff" />
             <Text style={styles.ticketButtonText}>View Event</Text>
