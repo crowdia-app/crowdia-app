@@ -306,6 +306,34 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
+        {/* Organizer: Manage Events */}
+        {organizerProfile ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              MANAGE
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.card,
+                styles.cardRow,
+                { backgroundColor: colors.card, opacity: pressed ? 0.7 : 1 },
+              ]}
+              onPress={() => router.push('/organizer/events')}
+            >
+              <Ionicons name="calendar-outline" size={20} color={Magenta[500]} />
+              <View style={styles.cardRowContent}>
+                <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                  My Events
+                </Text>
+                <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                  Create and manage your events
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* Become an Organizer / Request Status */}
         {!organizerProfile ? (
           <View style={styles.section}>
