@@ -41,7 +41,12 @@ export default function SignupScreen() {
     try {
       await signInWithGoogle();
       if (Platform.OS !== 'web') {
-        router.replace('/(tabs)');
+        const { userProfile } = useAuthStore.getState();
+        if (!userProfile?.username) {
+          router.replace('/onboarding/user');
+        } else {
+          router.replace('/(tabs)');
+        }
       }
     } catch {
       // Error displayed via store's error state

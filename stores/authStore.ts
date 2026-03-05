@@ -140,8 +140,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         ) {
           // Award 50 points for email confirmation
           userProfile = await AuthService.awardEmailConfirmationPoints(
-            authData.user.id,
-            userProfile.points
+            authData.user.id
           );
           // Award referral points to the referrer if this user was referred
           if (userProfile?.referred_by) {

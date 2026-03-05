@@ -56,7 +56,12 @@ export default function LoginScreen() {
       await signInWithGoogle();
       // On native the session is set synchronously after code exchange
       if (Platform.OS !== 'web') {
-        router.replace('/(tabs)');
+        const { userProfile } = useAuthStore.getState();
+        if (!userProfile?.username) {
+          router.replace('/onboarding/user');
+        } else {
+          router.replace('/(tabs)');
+        }
       }
       // On web the page redirects; nothing to do here
     } catch {

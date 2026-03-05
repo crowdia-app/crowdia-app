@@ -49,7 +49,12 @@ export default function RootLayout() {
               isGoogleSigningIn: false,
               isAppleSigningIn: false,
             });
-            router.replace('/(tabs)');
+            // Route new OAuth users to onboarding if they haven't set a username yet
+            if (!userProfile?.username) {
+              router.replace('/onboarding/user');
+            } else {
+              router.replace('/(tabs)');
+            }
           } catch {
             // Non-fatal -- let normal flow handle it
           }
