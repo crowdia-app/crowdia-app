@@ -25,15 +25,16 @@ export default function UserOnboardingScreen() {
 
     setIsLoading(true);
     try {
-      // Update user profile and award 25 points for completing profile
+      // Upsert user profile and award 25 points for completing profile
+      // (upsert handles the edge case where the stub row was not yet created)
       const { error: profileError } = await supabase
         .from('users')
-        .update({
+        .upsert({
+          id: user?.id,
           display_name: displayName.trim(),
           username: username.trim().toLowerCase(),
           points: (userProfile?.points || 0) + 25,
-        })
-        .eq('id', user?.id);
+        });
 
       if (profileError) throw profileError;
 
