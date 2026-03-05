@@ -7,7 +7,7 @@ interface EventRecord {
   title: string;
   event_start_time: string;
   confidence_score: number | null;
-  created_at: string;
+  created_at: string | null;
   cover_image_url: string | null;
 }
 
@@ -134,6 +134,61 @@ async function cleanupDuplicates(dryRun: boolean = true): Promise<void> {
         });
       }
     }
+  }
+
+  // Second pass: find cross-date duplicates with identical normalized titles
+  // Only flags events where at least one duplicate has event_start_time date == created_at date
+  // (a reliable signal the date was set to "today" by the scraper rather than the real event date)
+  const allEvents = events.filter((e) => !processed.has(e.id));
+  const byNormalizedTitle = new Map<string, EventRecord[]>();
+  for (const event of allEvents) {
+    const norm = normalizeTitle(event.title);
+    if (!byNormalizedTitle.has(norm)) {
+      byNormalizedTitle.set(norm, []);
+    }
+    byNormalizedTitle.get(norm)!.push(event);
+  }
+
+  for (const [, titleEvents] of byNormalizedTitle) {
+    if (titleEvents.length < 2) continue;
+
+    // Only deduplicate if events span different dates
+    const uniqueDates = new Set(titleEvents.map((e) => e.event_start_time.split("T")[0]));
+    if (uniqueDates.size < 2) continue;
+
+    // Only flag if at least one event has event_start_time date == created_at date
+    // (the wrong-date signature from scraping)
+    const hasWrongDateSignature = titleEvents.some(
+      (e) => e.created_at && e.event_start_time.split("T")[0] === e.created_at.split("T")[0]
+    );
+    if (!hasWrongDateSignature) continue;
+
+    // Sort: deprioritize events where event date == creation date (likely wrong date from scraping),
+    // then by highest confidence, then has image, then earliest created
+    titleEvents.sort((a, b) => {
+      const aDateMatchesCreated = a.event_start_time.split("T")[0] === a.created_at?.split("T")[0] ? 1 : 0;
+      const bDateMatchesCreated = b.event_start_time.split("T")[0] === b.created_at?.split("T")[0] ? 1 : 0;
+      if (aDateMatchesCreated !== bDateMatchesCreated) return aDateMatchesCreated - bDateMatchesCreated;
+
+      const confDiff = (b.confidence_score || 0) - (a.confidence_score || 0);
+      if (confDiff !== 0) return confDiff;
+
+      const aHasImg = a.cover_image_url && a.cover_image_url.length > 0 ? 1 : 0;
+      const bHasImg = b.cover_image_url && b.cover_image_url.length > 0 ? 1 : 0;
+      if (aHasImg !== bHasImg) return bHasImg - aHasImg;
+
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+
+    for (const e of titleEvents) processed.add(e.id);
+
+    duplicates.push({
+      title: titleEvents[0].title,
+      event_date: "cross-date",
+      events: titleEvents,
+      keep_id: titleEvents[0].id,
+      delete_ids: titleEvents.slice(1).map((e) => e.id),
+    });
   }
 
   if (duplicates.length === 0) {
