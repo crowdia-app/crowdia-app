@@ -31,8 +31,23 @@ export default function RootLayout() {
   // Listen for OAuth sign-in events (Google, etc.) so we can update the store
   // and navigate after the browser callback resolves
   useEffect(() => {
+    let isPasswordRecovery = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked a password reset link — navigate to the reset screen
+        isPasswordRecovery = true;
+        router.replace('/auth/reset-password');
+        return;
+      }
+
       if (event === 'SIGNED_IN' && session?.user) {
+        // Skip redirect if this SIGNED_IN was triggered by a PASSWORD_RECOVERY exchange
+        if (isPasswordRecovery) {
+          isPasswordRecovery = false;
+          return;
+        }
+
         // Only handle if the store doesn't already have this user (avoids duplicate work)
         const currentUser = useAuthStore.getState().user;
         if (!currentUser || currentUser.id !== session.user.id) {
@@ -93,6 +108,8 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding/organizer" />
           <Stack.Screen name="auth/login" />
           <Stack.Screen name="auth/signup" />
+          <Stack.Screen name="auth/forgot-password" />
+          <Stack.Screen name="auth/reset-password" />
           <Stack.Screen name="leaderboard" options={{ animation: 'slide_from_right' }} />
         </Stack>
         <StatusBar style="auto" />

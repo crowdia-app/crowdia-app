@@ -36,10 +36,17 @@ export default function ResetPasswordScreen() {
       }
     });
 
-    // Also check for existing session (in case auth state change already fired)
+    // Also check for existing session (in case auth state change already fired before this screen mounted)
     const checkExistingSession = async () => {
-      // Give Supabase more time to process the URL and exchange the code
-      // Increased from 1s to 3s to handle slower connections
+      // Check immediately first — session may already exist if navigated from root layout
+      const { data: { session: immediateSession } } = await supabase.auth.getSession();
+      if (immediateSession) {
+        setIsValidToken(true);
+        setIsCheckingToken(false);
+        return;
+      }
+
+      // Give Supabase time to process the URL and exchange the code
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       const { data: { session } } = await supabase.auth.getSession();
