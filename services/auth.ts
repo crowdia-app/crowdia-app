@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { AuthError } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -52,18 +51,19 @@ export class AuthService {
   }
 
   static async getCurrentUser() {
+    // Use getSession() instead of getUser() for initialization -- getSession() reads from
+    // local storage and avoids a network call that can hang indefinitely on slow/offline networks.
+    // getUser() validates the JWT with the server on every call, which is unnecessary during
+    // app startup and causes infinite loading when the network is unavailable.
     const {
-      data: { user },
+      data: { session },
       error,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getSession();
 
-    if (error) {
-      // Any auth error during init means no valid session -- clear stale state and continue
-      console.warn('getCurrentUser error (clearing session):', error.message);
-      await supabase.auth.signOut().catch(() => {});
+    if (error || !session) {
       return null;
     }
-    return user;
+    return session.user;
   }
 
   static async getUserProfile(userId: string) {
