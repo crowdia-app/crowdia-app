@@ -136,7 +136,6 @@ export default function SavedScreen() {
               colors={[Magenta[500]]}
             />
           }
-          estimatedItemSize={200}
         />
       )}
     </View>

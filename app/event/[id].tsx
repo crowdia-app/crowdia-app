@@ -197,7 +197,7 @@ export default function EventDetailScreen() {
     }
     trackAffiliateClick({
       userId: user?.id ?? null,
-      eventId: event.id,
+      eventId: event.id!,
       url: event.external_ticket_url,
       clickType: 'ticket',
     });
@@ -600,7 +600,7 @@ export default function EventDetailScreen() {
             onPress={() => {
               trackAffiliateClick({
                 userId: user?.id ?? null,
-                eventId: event.id,
+                eventId: event.id!,
                 url: event.event_url!,
                 clickType: 'event_url',
               });
