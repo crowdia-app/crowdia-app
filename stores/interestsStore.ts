@@ -20,7 +20,7 @@ interface InterestsState {
   /** Load full event data for the interested events list */
   loadInterestedEvents: (userId: string) => Promise<void>;
   /** Toggle interest for an event (optimistic update) */
-  toggleInterest: (userId: string, eventId: string) => Promise<void>;
+  toggleInterest: (userId: string, eventId: string, event?: EventWithStats) => Promise<void>;
   /** Check if user is interested in an event */
   isInterested: (eventId: string) => boolean;
   /** Clear all state on logout */
@@ -55,7 +55,7 @@ export const useInterestsStore = create<InterestsState>((set, get) => ({
     }
   },
 
-  toggleInterest: async (userId: string, eventId: string) => {
+  toggleInterest: async (userId: string, eventId: string, event?: EventWithStats) => {
     const { interestedEventIds, interestedEvents } = get();
     const wasInterested = interestedEventIds.has(eventId);
 
@@ -73,7 +73,11 @@ export const useInterestsStore = create<InterestsState>((set, get) => ({
       });
     } else {
       newIds.add(eventId);
-      set({ interestedEventIds: newIds });
+      // Prepend to interestedEvents if the full event object is available
+      set({
+        interestedEventIds: newIds,
+        interestedEvents: event ? [event, ...interestedEvents] : interestedEvents,
+      });
     }
 
     try {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EventCard } from '@/components/events/EventCard';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
@@ -28,12 +28,14 @@ export default function SavedScreen() {
   const { user } = useAuthStore();
   const { interestedEvents, isLoading, loadInterestedEvents } = useInterestsStore();
 
-  // Load saved events on mount
-  useEffect(() => {
-    if (user) {
-      loadInterestedEvents(user.id);
-    }
-  }, [user, loadInterestedEvents]);
+  // Reload saved events every time this tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadInterestedEvents(user.id);
+      }
+    }, [user, loadInterestedEvents])
+  );
 
   const handleRefresh = useCallback(() => {
     if (user) {

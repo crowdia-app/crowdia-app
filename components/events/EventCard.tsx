@@ -56,7 +56,7 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    toggleInterest(user.id, event.id!);
+    toggleInterest(user.id, event.id!, event);
   }, [user, event.id, toggleInterest]);
 
   return (

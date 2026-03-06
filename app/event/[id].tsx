@@ -163,8 +163,8 @@ export default function EventDetailScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    toggleInterest(user.id, id);
-  }, [user, id, toggleInterest]);
+    toggleInterest(user.id, id, event ?? undefined);
+  }, [user, id, toggleInterest, event]);
 
   const handleBack = () => {
     if (Platform.OS !== 'web') {
