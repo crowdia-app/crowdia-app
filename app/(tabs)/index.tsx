@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EventCard, SearchBar } from '@/components/events';
-import { FilterDrawer } from '@/components/filters';
+import { FilterDrawer, ActiveFiltersRow } from '@/components/filters';
 import { EventsMap } from '@/components/maps';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { Colors, Spacing, Typography, Magenta, BorderRadius } from '@/constants/theme';
@@ -202,6 +202,9 @@ export default function EventsFeedScreen() {
         visible={filterVisible}
         onClose={() => setFilterVisible(false)}
       />
+
+      {/* Active filter chips */}
+      <ActiveFiltersRow />
 
       {/* Content */}
       {isLoading ? (
