@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { config } from "./config";
-import type { Database, AgentRunInsert, AgentLogInsert } from "../types/database";
+import type { Database, AgentRunInsert, AgentLogInsert, Json } from "../types/database";
 
 const supabase = createClient<Database>(config.supabaseUrl, config.supabaseServiceKey);
 
@@ -67,7 +67,7 @@ export class AgentLogger {
         agent_run_id: this.runId,
         level,
         message,
-        metadata: metadata || null,
+        metadata: (metadata || null) as Json | null,
       };
 
       const { error } = await supabase.from('agent_logs').insert(logData);
@@ -83,7 +83,7 @@ export class AgentLogger {
   /**
    * Update the agent run status and stats
    */
-  async completeRun(status: 'completed' | 'failed', stats: Record<string, unknown>, summary?: string, errorMessage?: string): Promise<void> {
+  async completeRun(status: 'completed' | 'failed', stats: object, summary?: string, errorMessage?: string): Promise<void> {
     if (!this.runId) return;
 
     try {
@@ -95,7 +95,7 @@ export class AgentLogger {
           status,
           completed_at: new Date().toISOString(),
           duration_seconds: durationSeconds,
-          stats,
+          stats: stats as unknown as Json,
           summary: summary || null,
           error_message: errorMessage || null,
         })
