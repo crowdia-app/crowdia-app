@@ -44,7 +44,12 @@ export default function LoginScreen() {
 
     try {
       await login(email, password);
-      router.replace('/(tabs)');
+      const { userProfile } = useAuthStore.getState();
+      if (!userProfile?.username) {
+        router.replace('/onboarding/user');
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch {
       // Error is displayed inline via the store's error state
     }
