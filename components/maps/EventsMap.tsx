@@ -266,7 +266,7 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
           {selectedVenueGroup.map((event) => (
             <TouchableOpacity
               key={event.id}
-              style={[styles.venueOverlayItem, { borderTopColor: colors.border }]}
+              style={[styles.venueOverlayItem, { borderTopColor: colors.cardBorder }]}
               onPress={() => {
                 setSelectedVenueGroup(null);
                 router.push(`/event/${event.id}`);
@@ -311,7 +311,7 @@ function VenueCallout({ events, colorScheme, onEventPress }: VenueCalloutProps) 
       {events.slice(0, 4).map((event, idx) => (
         <TouchableOpacity
           key={event.id}
-          style={[venueCalloutStyles.item, idx > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}
+          style={[venueCalloutStyles.item, idx > 0 && { borderTopColor: colors.cardBorder, borderTopWidth: StyleSheet.hairlineWidth }]}
           onPress={() => onEventPress(event)}
         >
           <Text style={[venueCalloutStyles.itemTitle, { color: colors.text }]} numberOfLines={1}>
