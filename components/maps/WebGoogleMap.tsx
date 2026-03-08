@@ -40,6 +40,7 @@ interface SingleMarkerProps {
 interface MultiMarkerProps {
   events: EventWithStats[];
   colorScheme: 'light' | 'dark';
+  userLocation?: { latitude: number; longitude: number } | null;
 }
 
 type WebGoogleMapProps = (SingleMarkerProps | MultiMarkerProps) & {
@@ -81,7 +82,8 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
   const { colorScheme, style } = props;
   const colors = Colors[colorScheme];
   const router = useRouter();
-  const [selectedEvent, setSelectedEvent] = useState<EventWithStats | null>(null);
+  // selectedVenueGroup holds the event(s) whose InfoWindow is open
+  const [selectedVenueGroup, setSelectedVenueGroup] = useState<EventWithStats[]>([]);
   const mapRef = useRef<google.maps.Map | null>(null);
   const [isLocating, setIsLocating] = useState(false);
 
@@ -89,12 +91,12 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
   });
 
-  const handleMarkerClick = useCallback((event: EventWithStats) => {
-    setSelectedEvent(event);
+  const handleMarkerClick = useCallback((event: EventWithStats, group?: EventWithStats[]) => {
+    setSelectedVenueGroup(group ?? [event]);
   }, []);
 
   const handleInfoWindowClose = useCallback(() => {
-    setSelectedEvent(null);
+    setSelectedVenueGroup([]);
   }, []);
 
   const handleEventClick = useCallback((eventId: string) => {
@@ -193,30 +195,41 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
   }
 
   // Multi-marker mode
-  const { events } = props;
+  const { events, userLocation } = props as MultiMarkerProps;
 
-  // Memoize bounds and center calculation
-  const { bounds, center } = useMemo(() => {
+  // Default center: Palermo, Sicily
+  const DEFAULT_CENTER = { lat: 38.1157, lng: 13.3615 };
+
+  // Group events by venue coordinates (round to ~11m precision)
+  const venueGroups = useMemo(() => {
+    const groups = new Map<string, EventWithStats[]>();
+    events.forEach((event) => {
+      if (event.location_lat && event.location_lng) {
+        const key = `${event.location_lat.toFixed(4)},${event.location_lng.toFixed(4)}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(event);
+      }
+    });
+    return Array.from(groups.values());
+  }, [events]);
+
+  // Memoize bounds calculation
+  const bounds = useMemo(() => {
     const b = new google.maps.LatLngBounds();
     events.forEach((event) => {
       if (event.location_lat && event.location_lng) {
         b.extend({ lat: event.location_lat, lng: event.location_lng });
       }
     });
-
-    const c = events.length > 0
-      ? { lat: b.getCenter().lat(), lng: b.getCenter().lng() }
-      : { lat: 42.3601, lng: -71.0589 }; // Default: Boston
-
-    return { bounds: b, center: c };
+    return b;
   }, [events]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <GoogleMap
       mapContainerStyle={{ width: '100%', height: '100%', ...style }}
-      center={center}
-      zoom={12}
+      center={DEFAULT_CENTER}
+      zoom={13}
       options={{
         styles: colorScheme === 'dark' ? darkMapStyles : [],
         disableDefaultUI: true,
@@ -224,30 +237,104 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
       }}
       onLoad={(map) => {
         handleMapLoad(map);
-        if (events.length > 1) {
+        // If filter store already has user location, use it immediately (no extra API call)
+        if (userLocation) {
+          map.panTo({ lat: userLocation.latitude, lng: userLocation.longitude });
+          map.setZoom(13);
+          return;
+        }
+        // Otherwise try browser geolocation
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              map.setZoom(13);
+            },
+            () => {
+              // Permission denied or unavailable
+              // Check if events are spread nationwide (delta > 5°) — if so, stay on city default
+              const lats = events.filter((e) => e.location_lat).map((e) => e.location_lat!);
+              const lngs = events.filter((e) => e.location_lng).map((e) => e.location_lng!);
+              const latDelta = lats.length ? Math.max(...lats) - Math.min(...lats) : 0;
+              const lngDelta = lngs.length ? Math.max(...lngs) - Math.min(...lngs) : 0;
+              if (latDelta > 5 || lngDelta > 5) {
+                // Nationwide spread — show city center at default zoom
+                map.panTo(DEFAULT_CENTER);
+                map.setZoom(13);
+              } else if (events.length > 1) {
+                map.fitBounds(bounds, 50);
+              } else if (events.length === 1 && events[0].location_lat && events[0].location_lng) {
+                map.panTo({ lat: events[0].location_lat, lng: events[0].location_lng });
+                map.setZoom(14);
+              }
+            },
+            { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+          );
+        } else if (events.length > 1) {
           map.fitBounds(bounds, 50);
         }
       }}
     >
-      {events.map((event) => (
-        <MarkerF
-          key={event.id}
-          position={{ lat: event.location_lat!, lng: event.location_lng! }}
-          icon={crowdiaLogoUri ? {
-            url: crowdiaLogoUri,
-            scaledSize: new google.maps.Size(MARKER_SIZE, MARKER_SIZE),
-            anchor: new google.maps.Point(MARKER_SIZE / 2, MARKER_SIZE),
-          } : undefined}
-          onClick={() => handleMarkerClick(event)}
-        />
-      ))}
+      {venueGroups.map((group) => {
+        const first = group[0];
+        const count = group.length;
+        const position = { lat: first.location_lat!, lng: first.location_lng! };
 
-      {selectedEvent && (
+        if (count === 1) {
+          return (
+            <MarkerF
+              key={first.id}
+              position={position}
+              icon={crowdiaLogoUri ? {
+                url: crowdiaLogoUri,
+                scaledSize: new google.maps.Size(MARKER_SIZE, MARKER_SIZE),
+                anchor: new google.maps.Point(MARKER_SIZE / 2, MARKER_SIZE),
+              } : undefined}
+              onClick={() => handleMarkerClick(first)}
+            />
+          );
+        }
+
+        // Multiple events at same venue — show count badge marker
+        return (
+          <MarkerF
+            key={`venue-${first.location_lat}-${first.location_lng}`}
+            position={position}
+            label={{
+              text: String(count),
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 'bold',
+            }}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 18,
+              fillColor: Magenta[500],
+              fillOpacity: 1,
+              strokeColor: '#fff',
+              strokeWeight: 2,
+            }}
+            onClick={() => handleMarkerClick(first, group)}
+          />
+        );
+      })}
+
+      {selectedVenueGroup.length > 0 && (
         <InfoWindow
-          position={{ lat: selectedEvent.location_lat!, lng: selectedEvent.location_lng! }}
+          position={{ lat: selectedVenueGroup[0].location_lat!, lng: selectedVenueGroup[0].location_lng! }}
           onCloseClick={handleInfoWindowClose}
         >
-          <EventInfoCard event={selectedEvent} onClick={() => handleEventClick(selectedEvent.id!)} />
+          {selectedVenueGroup.length === 1 ? (
+            <EventInfoCard
+              event={selectedVenueGroup[0]}
+              onClick={() => handleEventClick(selectedVenueGroup[0].id!)}
+            />
+          ) : (
+            <VenueInfoCard
+              events={selectedVenueGroup}
+              onEventClick={(id) => handleEventClick(id)}
+            />
+          )}
         </InfoWindow>
       )}
 
@@ -283,6 +370,51 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
           <line x1="18" y1="12" x2="22" y2="12" />
         </svg>
       </button>
+    </div>
+  );
+}
+
+// Info window for multiple events at the same venue
+interface VenueInfoCardProps {
+  events: EventWithStats[];
+  onEventClick: (id: string) => void;
+}
+
+function VenueInfoCard({ events, onEventClick }: VenueInfoCardProps) {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'Europe/Rome',
+    });
+  };
+
+  return (
+    <div style={{ width: 240, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>
+        {events[0].location_name || 'Venue'} · {events.length} events
+      </div>
+      {events.map((event, idx) => (
+        <div
+          key={event.id}
+          onClick={() => onEventClick(event.id!)}
+          style={{
+            padding: '6px 0',
+            borderTop: idx > 0 ? '1px solid #eee' : 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 2 }}>
+            {event.title}
+          </div>
+          <div style={{ fontSize: 11, color: '#888' }}>
+            {formatDate(event.event_start_time)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

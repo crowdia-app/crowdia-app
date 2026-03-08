@@ -1,10 +1,11 @@
 import React, { useMemo, useRef, useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Platform, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, Platform, useColorScheme, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, Typography, Magenta } from '@/constants/theme';
 import { EventCallout } from './EventCallout';
+import { useEventsFilterStore } from '@/stores/eventsFilterStore';
 
 // Web Google Maps component - only imported on web
 let WebGoogleMap: React.ComponentType<any> | null = null;
@@ -63,24 +64,54 @@ interface EventsMapProps {
   };
 }
 
-// Default region: Boston area
+// Default region: Palermo, Sicily (primary event market)
 const DEFAULT_REGION = {
-  latitude: 42.3601,
-  longitude: -71.0589,
-  latitudeDelta: 0.2,
-  longitudeDelta: 0.2,
+  latitude: 38.1157,
+  longitude: 13.3615,
+  latitudeDelta: 0.15,
+  longitudeDelta: 0.15,
 };
+
+// Zoom level when centering on user location (~10km view)
+const USER_LOCATION_DELTA = 0.1;
 
 export function EventsMap({ events, initialRegion }: EventsMapProps) {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const router = useRouter();
   const mapRef = useRef<any>(null);
-  const [selectedEvent, setSelectedEvent] = useState<EventWithStats | null>(null);
+  const [selectedVenueGroup, setSelectedVenueGroup] = useState<EventWithStats[] | null>(null);
 
-  // Calculate optimal region based on events
+  // Read user location from the global filter store
+  const { userLocation } = useEventsFilterStore();
+
+  // Group events by venue coordinates (round to ~11m precision)
+  const venueGroups = useMemo(() => {
+    const groups = new Map<string, EventWithStats[]>();
+    events.forEach((event) => {
+      if (event.location_lat && event.location_lng) {
+        const key = `${event.location_lat.toFixed(4)},${event.location_lng.toFixed(4)}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(event);
+      }
+    });
+    return Array.from(groups.values());
+  }, [events]);
+
+  // Calculate optimal region: prefer user location, fall back to event bounds or default
   const region = useMemo(() => {
     if (initialRegion) return initialRegion;
+
+    // Zoom to user location if available
+    if (userLocation) {
+      return {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: USER_LOCATION_DELTA,
+        longitudeDelta: USER_LOCATION_DELTA,
+      };
+    }
+
     if (events.length === 0) return DEFAULT_REGION;
 
     const lats = events.map((e) => e.location_lat!).filter(Boolean);
@@ -96,34 +127,38 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
     const latDelta = Math.max(0.02, (maxLat - minLat) * 1.5);
     const lngDelta = Math.max(0.02, (maxLng - minLng) * 1.5);
 
+    // If all events are spread nationwide (delta > 5 degrees), use default city view
+    if (latDelta > 5 || lngDelta > 5) return DEFAULT_REGION;
+
     return {
       latitude: (minLat + maxLat) / 2,
       longitude: (minLng + maxLng) / 2,
       latitudeDelta: latDelta,
       longitudeDelta: lngDelta,
     };
-  }, [events, initialRegion]);
+  }, [events, initialRegion, userLocation]);
 
-  const handleMarkerPress = useCallback((event: EventWithStats) => {
-    setSelectedEvent(event);
-  }, []);
+  const handleSingleMarkerPress = useCallback((event: EventWithStats) => {
+    router.push(`/event/${event.id}`);
+  }, [router]);
 
-  const handleCalloutPress = useCallback(
-    (event: EventWithStats) => {
-      router.push(`/event/${event.id}`);
-    },
-    [router]
-  );
+  const handleVenueMarkerPress = useCallback((group: EventWithStats[]) => {
+    if (group.length === 1) {
+      router.push(`/event/${group[0].id}`);
+    } else {
+      setSelectedVenueGroup(group);
+    }
+  }, [router]);
 
   const handleMapPress = useCallback(() => {
-    setSelectedEvent(null);
+    setSelectedVenueGroup(null);
   }, []);
 
   // For web, use Google Maps JavaScript API
   if (Platform.OS === 'web' && WebGoogleMap) {
     return (
       <View style={styles.container}>
-        <WebGoogleMap events={events} colorScheme={colorScheme} />
+        <WebGoogleMap events={events} colorScheme={colorScheme} userLocation={userLocation} />
       </View>
     );
   }
@@ -166,31 +201,156 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
         extent={512}
         nodeSize={64}
       >
-        {events.map((event) => (
-          <NativeMarker
-            key={event.id}
-            coordinate={{
-              latitude: event.location_lat!,
-              longitude: event.location_lng!,
-            }}
-            pinColor={Magenta[500]}
-            onPress={() => handleMarkerPress(event)}
-          >
-            {NativeCallout && (
-              <NativeCallout
-                tooltip
-                onPress={() => handleCalloutPress(event)}
-                style={styles.calloutContainer}
+        {venueGroups.map((group) => {
+          const first = group[0];
+          const count = group.length;
+          const coordinate = {
+            latitude: first.location_lat!,
+            longitude: first.location_lng!,
+          };
+
+          if (count === 1) {
+            // Single event at this location — standard marker
+            return (
+              <NativeMarker
+                key={first.id}
+                coordinate={coordinate}
+                pinColor={Magenta[500]}
+                onPress={() => handleSingleMarkerPress(first)}
               >
-                <EventCallout event={event} onPress={() => handleCalloutPress(event)} />
-              </NativeCallout>
-            )}
-          </NativeMarker>
-        ))}
+                {NativeCallout && (
+                  <NativeCallout
+                    tooltip
+                    onPress={() => handleSingleMarkerPress(first)}
+                    style={styles.calloutContainer}
+                  >
+                    <EventCallout event={first} onPress={() => handleSingleMarkerPress(first)} />
+                  </NativeCallout>
+                )}
+              </NativeMarker>
+            );
+          }
+
+          // Multiple events at same venue — badge marker
+          return (
+            <NativeMarker
+              key={`venue-${coordinate.latitude}-${coordinate.longitude}`}
+              coordinate={coordinate}
+              onPress={() => handleVenueMarkerPress(group)}
+            >
+              <View style={[styles.venueBadge, { backgroundColor: Magenta[500] }]}>
+                <Text style={styles.venueBadgeText}>{count}</Text>
+              </View>
+              {NativeCallout && (
+                <NativeCallout tooltip style={styles.calloutContainer}>
+                  <VenueCallout
+                    events={group}
+                    colorScheme={colorScheme}
+                    onEventPress={(event) => {
+                      router.push(`/event/${event.id}`);
+                    }}
+                  />
+                </NativeCallout>
+              )}
+            </NativeMarker>
+          );
+        })}
       </MapComponent>
+
+      {/* Venue event list overlay for native (fallback when callout isn't ideal) */}
+      {selectedVenueGroup && selectedVenueGroup.length > 1 && (
+        <View style={[styles.venueOverlay, { backgroundColor: colors.card }]}>
+          <Text style={[styles.venueOverlayTitle, { color: colors.text }]}>
+            {selectedVenueGroup[0].location_name || 'Events at this venue'}
+          </Text>
+          {selectedVenueGroup.map((event) => (
+            <TouchableOpacity
+              key={event.id}
+              style={[styles.venueOverlayItem, { borderTopColor: colors.border }]}
+              onPress={() => {
+                setSelectedVenueGroup(null);
+                router.push(`/event/${event.id}`);
+              }}
+            >
+              <Text style={[styles.venueOverlayItemTitle, { color: colors.text }]} numberOfLines={1}>
+                {event.title}
+              </Text>
+              {event.event_start_time && (
+                <Text style={[styles.venueOverlayItemDate, { color: colors.textSecondary }]}>
+                  {new Date(event.event_start_time).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    timeZone: 'Europe/Rome',
+                  })}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
+
+// Callout content for multi-event venues
+interface VenueCalloutProps {
+  events: EventWithStats[];
+  colorScheme: 'light' | 'dark';
+  onEventPress: (event: EventWithStats) => void;
+}
+
+function VenueCallout({ events, colorScheme, onEventPress }: VenueCalloutProps) {
+  const colors = Colors[colorScheme];
+  return (
+    <View style={[venueCalloutStyles.container, { backgroundColor: colors.card }]}>
+      <Text style={[venueCalloutStyles.title, { color: colors.text }]}>
+        {events[0].location_name || 'Venue'} · {events.length} events
+      </Text>
+      {events.slice(0, 4).map((event, idx) => (
+        <TouchableOpacity
+          key={event.id}
+          style={[venueCalloutStyles.item, idx > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}
+          onPress={() => onEventPress(event)}
+        >
+          <Text style={[venueCalloutStyles.itemTitle, { color: colors.text }]} numberOfLines={1}>
+            {event.title}
+          </Text>
+        </TouchableOpacity>
+      ))}
+      {events.length > 4 && (
+        <Text style={[venueCalloutStyles.more, { color: colors.textSecondary }]}>
+          +{events.length - 4} more
+        </Text>
+      )}
+    </View>
+  );
+}
+
+const venueCalloutStyles = StyleSheet.create({
+  container: {
+    borderRadius: 8,
+    padding: Spacing.sm,
+    minWidth: 180,
+    maxWidth: 240,
+  },
+  title: {
+    fontSize: Typography.xs,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+  },
+  item: {
+    paddingVertical: Spacing.xs,
+  },
+  itemTitle: {
+    fontSize: Typography.sm,
+  },
+  more: {
+    fontSize: Typography.xs,
+    marginTop: Spacing.xs,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -211,5 +371,49 @@ const styles = StyleSheet.create({
   },
   calloutContainer: {
     backgroundColor: 'transparent',
+  },
+  venueBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  venueBadgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  venueOverlay: {
+    position: 'absolute',
+    bottom: Spacing.xl,
+    left: Spacing.md,
+    right: Spacing.md,
+    borderRadius: 12,
+    padding: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  venueOverlayTitle: {
+    fontSize: Typography.sm,
+    fontWeight: '700',
+    marginBottom: Spacing.sm,
+  },
+  venueOverlayItem: {
+    paddingVertical: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  venueOverlayItemTitle: {
+    fontSize: Typography.sm,
+    fontWeight: '500',
+  },
+  venueOverlayItemDate: {
+    fontSize: Typography.xs,
+    marginTop: 2,
   },
 });
