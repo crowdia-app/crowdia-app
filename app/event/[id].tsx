@@ -32,6 +32,7 @@ import { MapSection } from '@/components/maps/MapSection';
 import { formatLocationAddress, hasPreciseLocation } from '@/utils/locationDisplay';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
+import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 
 const HERO_HEIGHT = 320;
 
