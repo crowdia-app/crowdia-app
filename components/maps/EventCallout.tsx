@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, useColorScheme, Platform } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
-import { StaticGlowLogo } from '@/components/ui/glowing-logo';
+import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlaceholder';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 
 interface EventCalloutProps {
@@ -32,7 +31,8 @@ export function EventCallout({ event, onPress }: EventCalloutProps) {
 
   const dateInfo = formatDate(event.event_start_time);
   const imageUrl = getProxiedImageUrl(event.cover_image_url);
-  const hasValidImage = !!imageUrl;
+  const [imageError, setImageError] = useState(false);
+  const hasValidImage = !!imageUrl && !imageError;
 
   return (
     <Pressable
@@ -51,16 +51,13 @@ export function EventCallout({ event, onPress }: EventCalloutProps) {
             style={styles.image}
             contentFit="cover"
             transition={200}
+            onError={() => setImageError(true)}
           />
         ) : (
-          <LinearGradient
-            colors={[Magenta[700], Magenta[500], Magenta[400]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.imagePlaceholder}
-          >
-            <StaticGlowLogo size={24} />
-          </LinearGradient>
+          <CategoryImagePlaceholder
+            categorySlug={event.category_slug}
+            iconSize={24}
+          />
         )}
       </View>
 
@@ -127,12 +124,6 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   content: {
     flex: 1,
