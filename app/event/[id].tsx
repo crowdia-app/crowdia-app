@@ -21,11 +21,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { fetchEventById } from '@/services/events';
+import { fetchOrganizerById } from '@/services/organizers';
 import { trackAffiliateClick } from '@/services/affiliate';
 import { supabase } from '@/lib/supabase';
 import { Colors, Spacing, BorderRadius, Typography, Magenta, Green } from '@/constants/theme';
-import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlaceholder';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { MapSection } from '@/components/maps/MapSection';
 import { formatLocationAddress, hasPreciseLocation } from '@/utils/locationDisplay';
@@ -120,6 +121,12 @@ export default function EventDetailScreen() {
   });
 
   // Check if the current user has already checked in to this event
+  const { data: organizer } = useQuery({
+    queryKey: ['organizer', event?.organizer_id],
+    queryFn: () => fetchOrganizerById(event!.organizer_id!),
+    enabled: !!event?.organizer_id,
+  });
+
   const { data: existingCheckIn, refetch: refetchCheckIn } = useQuery({
     queryKey: ['check-in', id, user?.id],
     queryFn: async () => {
@@ -333,14 +340,11 @@ export default function EventDetailScreen() {
               onError={() => setImageError(true)}
             />
           ) : (
-            <LinearGradient
-              colors={[Magenta[700], Magenta[500], Magenta[400]]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <CategoryImagePlaceholder
+              categorySlug={event?.category_slug}
               style={styles.heroImage}
-            >
-              <StaticGlowLogo size={80} />
-            </LinearGradient>
+              iconSize={80}
+            />
           )}
 
           {/* Gradient Overlay */}
@@ -448,6 +452,41 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
                 <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+              </View>
+            </Pressable>
+          ) : null}
+
+          {/* Organizer */}
+          {organizer ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.infoCard,
+                { backgroundColor: colors.card },
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={() => router.push(`/organizer/${organizer.id}`)}
+            >
+              <View style={styles.infoRow}>
+                <View style={[styles.infoIcon, { backgroundColor: Magenta[500] + '20', overflow: 'hidden' }]}>
+                  {organizer.logo_url ? (
+                    <Image
+                      source={{ uri: organizer.logo_url }}
+                      style={{ width: 40, height: 40 }}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <Ionicons name="business-outline" size={20} color={Magenta[500]} />
+                  )}
+                </View>
+                <View style={styles.infoText}>
+                  <Text style={[styles.infoLabel, { color: colors.text }]} numberOfLines={1}>
+                    {organizer.organization_name}
+                  </Text>
+                  <Text style={[styles.infoSubLabel, { color: colors.textSecondary }]}>
+                    {organizer.is_verified ? 'Verified organizer' : 'Organizer'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
               </View>
             </Pressable>
           ) : null}

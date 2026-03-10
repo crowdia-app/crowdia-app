@@ -8,13 +8,12 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
-import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlaceholder';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -79,14 +78,11 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
             onError={() => setImageError(true)}
           />
         ) : (
-          <LinearGradient
-            colors={[Magenta[700], Magenta[500], Magenta[400]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <CategoryImagePlaceholder
+            categorySlug={event.category_slug}
             style={styles.imagePlaceholder}
-          >
-            <StaticGlowLogo size={40} />
-          </LinearGradient>
+            iconSize={36}
+          />
         )}
       </View>
 
