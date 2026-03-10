@@ -890,6 +890,7 @@ export type Database = {
           handle: string
           id: string
           last_seen_at: string | null
+          metadata: Json | null
           occurrence_count: number | null
           platform: string
           processed_at: string | null
@@ -905,6 +906,7 @@ export type Database = {
           handle: string
           id?: string
           last_seen_at?: string | null
+          metadata?: Json | null
           occurrence_count?: number | null
           platform?: string
           processed_at?: string | null
@@ -920,6 +922,7 @@ export type Database = {
           handle?: string
           id?: string
           last_seen_at?: string | null
+          metadata?: Json | null
           occurrence_count?: number | null
           platform?: string
           processed_at?: string | null
@@ -2267,3 +2270,11 @@ export const Constants = {
 
 // Convenience type aliases
 export type EventWithStats = Database['public']['Views']['events_with_stats']['Row']
+export type EventInsert = TablesInsert<'events'>
+export type Location = Tables<'locations'>
+export type Organizer = Tables<'organizers'>
+export type AgentRun = Tables<'agent_runs'>
+export type AgentRunInsert = TablesInsert<'agent_runs'>
+export type AgentLog = Tables<'agent_logs'>
+export type AgentLogInsert = TablesInsert<'agent_logs'>
+export type AgentRunWithLogs = AgentRun & { logs: AgentLog[] }

@@ -56,6 +56,8 @@ export default function AgentsScreen() {
         return { bg: Colors.red[100], text: Colors.red[700] };
       case 'running':
         return { bg: Colors.yellow[100], text: Colors.yellow[700] };
+      default:
+        return { bg: Colors.charcoal[100], text: Colors.charcoal[700] };
     }
   };
 

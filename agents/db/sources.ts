@@ -10,6 +10,7 @@ export interface EventSource {
   locationId?: string;
   reliabilityScore?: number;
   last_scraped_at?: string | null;
+  enabled?: boolean | null;
 }
 
 /**
@@ -148,7 +149,7 @@ async function getEventSourcesLegacy(): Promise<EventSource[]> {
         id: a.id, 
         name: a.name, 
         url,
-        reliabilityScore: a.scrape_priority,
+        reliabilityScore: a.scrape_priority ?? undefined,
       });
     }
   });

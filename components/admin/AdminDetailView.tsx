@@ -10,7 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { IconSymbol, type IconSymbolName } from '@/components/ui/icon-symbol';
 import { Stack } from 'expo-router';
 
 export interface DetailSection {
@@ -76,7 +76,7 @@ export function AdminDetailView({ title, subtitle, sections, isLoading, onEdit, 
               style={[styles.customAction, { backgroundColor: action.color || Colors.magenta[500] }]}
               onPress={action.onPress}
             >
-              {action.icon && <IconSymbol name={action.icon} size={16} color="#fff" />}
+              {action.icon && <IconSymbol name={action.icon as IconSymbolName} size={16} color="#fff" />}
               <Text style={styles.customActionText}>{action.label}</Text>
             </TouchableOpacity>
           ))}

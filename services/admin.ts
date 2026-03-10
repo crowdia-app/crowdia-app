@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { AgentRun, AgentLog, AgentRunWithLogs } from "../types/database";
+export type { AgentRun, AgentLog, AgentRunWithLogs };
 
 export interface DashboardStats {
   totalUsers: number;

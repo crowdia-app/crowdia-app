@@ -135,7 +135,7 @@ export default function AdminDashboard() {
             onPress={() => router.push(item.route as any)}
           >
             <View style={styles.actionCardIcon}>
-              <IconSymbol name={item.icon} size={24} color={Colors.magenta[500]} />
+              <IconSymbol name={item.icon as any} size={24} color={Colors.magenta[500]} />
             </View>
             <View style={styles.actionCardContent}>
               <Text style={[styles.actionCardTitle, { color: colors.text }]}>{item.label}</Text>
@@ -227,7 +227,7 @@ interface StatCardProps {
 function StatCard({ title, value, subtitle, icon, color, backgroundColor, textColor }: StatCardProps) {
   return (
     <View style={[styles.statCard, { backgroundColor }]}>
-      <IconSymbol name={icon} size={24} color={color} />
+      <IconSymbol name={icon as any} size={24} color={color} />
       <Text style={[styles.statValue, { color: textColor }]}>{value.toLocaleString()}</Text>
       <Text style={[styles.statTitle, { color: textColor }]}>{title}</Text>
       {subtitle && <Text style={[styles.statSubtitle, { color: Colors.charcoal[400] }]}>{subtitle}</Text>}

@@ -581,7 +581,7 @@ async function checkEventRelevanceWithLLM(
     const truncatedCaptions = captions.slice(0, 2000); // Limit tokens
     
     const response = await openrouter.chat.completions.create({
-      model: config.llmModel,
+      model: config.model,
       messages: [
         {
           role: "system",

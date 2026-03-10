@@ -51,7 +51,7 @@ export async function updateHashtagStats(
       await getSupabase()
         .from("hashtag_stats")
         .update({
-          occurrence_count: existing.occurrence_count + 1,
+          occurrence_count: (existing.occurrence_count ?? 0) + 1,
           last_seen_at: new Date().toISOString(),
           sources_using: sourcesUsing,
         })
@@ -105,7 +105,7 @@ export async function queuePotentialSources(
       await getSupabase()
         .from("potential_sources")
         .update({
-          occurrence_count: existing.occurrence_count + 1,
+          occurrence_count: (existing.occurrence_count ?? 0) + 1,
           last_seen_at: new Date().toISOString(),
         })
         .eq("id", existing.id);
@@ -159,7 +159,7 @@ export async function queuePotentialSources(
  */
 export async function getTopHashtags(limit: number = 20): Promise<{
   tag: string;
-  occurrence_count: number;
+  occurrence_count: number | null;
   sources_using: string[];
 }[]> {
   const { data, error } = await getSupabase()
@@ -173,7 +173,7 @@ export async function getTopHashtags(limit: number = 20): Promise<{
     return [];
   }
 
-  return data || [];
+  return (data || []) as { tag: string; occurrence_count: number | null; sources_using: string[] }[];
 }
 
 /**
@@ -185,7 +185,7 @@ export async function getPendingPotentialSources(limit: number = 10): Promise<{
   platform: string;
   discovered_via_source_id: string | null;
   discovered_via_method: string;
-  occurrence_count: number;
+  occurrence_count: number | null;
 }[]> {
   const { data, error } = await getSupabase()
     .from("potential_sources")
@@ -329,7 +329,7 @@ export async function queueWebsiteSources(
         await getSupabase()
           .from("potential_sources")
           .update({
-            occurrence_count: existing.occurrence_count + 1,
+            occurrence_count: (existing.occurrence_count ?? 0) + 1,
             last_seen_at: new Date().toISOString(),
           })
           .eq("id", existing.id);
@@ -386,7 +386,7 @@ export async function getPendingWebsiteSources(limit: number = 10): Promise<{
   platform: string;
   discovered_via_source_id: string | null;
   discovered_via_method: string;
-  occurrence_count: number;
+  occurrence_count: number | null;
   metadata?: { name?: string; hostname?: string };
 }[]> {
   const { data, error } = await getSupabase()
@@ -402,7 +402,7 @@ export async function getPendingWebsiteSources(limit: number = 10): Promise<{
     return [];
   }
 
-  return data || [];
+  return (data || []) as { id: string; handle: string; platform: string; discovered_via_source_id: string | null; discovered_via_method: string; occurrence_count: number | null; metadata?: { name?: string; hostname?: string } }[];
 }
 
 /**

@@ -267,9 +267,11 @@ async function getEventsWithMissingImages(includeBroken: boolean = false): Promi
     return [];
   }
 
-  const results: EventWithMissingImage[] = (noImage || []).map(e => ({
-    id: e.id, title: e.title, event_url: e.event_url
-  }));
+  const results: EventWithMissingImage[] = (noImage || [])
+    .filter(e => e.event_url != null)
+    .map(e => ({
+      id: e.id, title: e.title, event_url: e.event_url!
+    }));
 
   // Also get events with broken external URLs (not in Supabase storage)
   if (includeBroken) {
@@ -290,11 +292,11 @@ async function getEventsWithMissingImages(includeBroken: boolean = false): Promi
           const res = await fetch(event.cover_image_url, { method: "HEAD", signal: AbortSignal.timeout(5000) });
           if (!res.ok) {
             console.log(`  Broken image (${res.status}): ${event.title.substring(0, 40)}...`);
-            results.push({ id: event.id, title: event.title, event_url: event.event_url });
+            results.push({ id: event.id, title: event.title, event_url: event.event_url! });
           }
         } catch {
           console.log(`  Broken image (timeout): ${event.title.substring(0, 40)}...`);
-          results.push({ id: event.id, title: event.title, event_url: event.event_url });
+          results.push({ id: event.id, title: event.title, event_url: event.event_url! });
         }
       }
     }
