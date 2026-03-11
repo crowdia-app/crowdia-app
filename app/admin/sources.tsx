@@ -15,6 +15,7 @@ import {
 import { AdminDataTable, type Column, type FilterOption } from '@/components/admin/AdminDataTable';
 import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModal';
 import { BooleanBadge, StatusBadge } from '@/components/admin/AdminDetailView';
+import { TIER_METADATA, type PrivacyTier } from '@/agents/privacy-tiers';
 
 const TYPE_COLORS: Record<string, { color: string; bgColor: string }> = {
   website: { color: Colors.blue[700], bgColor: Colors.blue[100] },
@@ -27,11 +28,21 @@ const TYPE_COLORS: Record<string, { color: string; bgColor: string }> = {
 
 const SOURCE_TYPES = ['website', 'instagram', 'facebook', 'ra', 'aggregator', 'other'];
 
+const PRIVACY_TIER_OPTIONS = ([1, 2, 3, 4, 5] as PrivacyTier[]).map((t) => ({
+  label: `T${t}: ${TIER_METADATA[t].name}`,
+  value: t,
+}));
+
 const FILTERS: FilterOption[] = [
   {
     key: 'type',
     label: 'Type',
     options: SOURCE_TYPES.map((t) => ({ label: t, value: t })),
+  },
+  {
+    key: 'privacy_tier',
+    label: 'Privacy Tier',
+    options: PRIVACY_TIER_OPTIONS,
   },
   {
     key: 'enabled',
@@ -163,6 +174,19 @@ export default function SourcesScreen() {
       ),
     },
     {
+      key: 'privacy_tier',
+      label: 'Tier',
+      width: 120,
+      render: (item: any) => {
+        const tier = item.privacy_tier as PrivacyTier | null;
+        if (!tier) {
+          return <Text style={{ color: colors.subtext, fontSize: 13 }}>Unclassified</Text>;
+        }
+        const meta = TIER_METADATA[tier];
+        return <StatusBadge status={`T${tier}: ${meta.name}`} color={meta.color} bgColor={meta.bgColor} />;
+      },
+    },
+    {
       key: 'last_scraped_at',
       label: 'Last Scraped',
       width: 130,
@@ -187,6 +211,16 @@ export default function SourcesScreen() {
     { key: 'enabled', label: 'Enabled', type: 'boolean' },
     { key: 'is_aggregator', label: 'Is Aggregator', type: 'boolean' },
     { key: 'reliability_score', label: 'Reliability Score', type: 'number', placeholder: '0-100' },
+    {
+      key: 'privacy_tier',
+      label: 'Privacy Tier',
+      type: 'select',
+      options: [
+        { label: 'Unclassified', value: '' },
+        ...PRIVACY_TIER_OPTIONS,
+      ],
+    },
+    { key: 'legal_notes', label: 'Legal Notes', type: 'text', placeholder: 'ToS classification notes...' },
     { key: 'organizer_id', label: 'Organizer', type: 'select', options: organizerOptions },
     { key: 'location_id', label: 'Location', type: 'select', options: locationOptions },
   ];

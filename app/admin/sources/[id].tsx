@@ -13,6 +13,7 @@ import {
 } from '@/services/admin-entities';
 import { AdminDetailView, StatusBadge, BooleanBadge, type DetailSection } from '@/components/admin/AdminDetailView';
 import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModal';
+import { TIER_METADATA, type PrivacyTier } from '@/agents/privacy-tiers';
 
 const TYPE_COLORS: Record<string, { color: string; bgColor: string }> = {
   website: { color: Colors.blue[700], bgColor: Colors.blue[100] },
@@ -105,6 +106,27 @@ export default function SourceDetailScreen() {
           ],
         },
         {
+          title: 'Legal Classification',
+          fields: [
+            {
+              label: 'Privacy Tier',
+              value: (() => {
+                const tier = source.privacy_tier as PrivacyTier | null;
+                if (!tier) return <Text style={{ color: colors.subtext, fontSize: 14 }}>Unclassified — needs human review</Text>;
+                const meta = TIER_METADATA[tier];
+                return <StatusBadge status={`T${tier}: ${meta.name}`} color={meta.color} bgColor={meta.bgColor} />;
+              })(),
+            },
+            {
+              label: 'Tier Description',
+              value: source.privacy_tier
+                ? TIER_METADATA[source.privacy_tier as PrivacyTier]?.description ?? '-'
+                : '-',
+            },
+            { label: 'Legal Notes', value: source.legal_notes ?? '-' },
+          ],
+        },
+        {
           title: 'Scraping',
           fields: [
             { label: 'Reliability', value: source.reliability_score?.toString() ?? '-' },
@@ -151,6 +173,20 @@ export default function SourceDetailScreen() {
     { key: 'enabled', label: 'Enabled', type: 'boolean' },
     { key: 'is_aggregator', label: 'Is Aggregator', type: 'boolean' },
     { key: 'reliability_score', label: 'Reliability Score', type: 'number', placeholder: '0-100' },
+    {
+      key: 'privacy_tier',
+      label: 'Privacy Tier',
+      type: 'select',
+      options: [
+        { label: 'Unclassified', value: '' },
+        { label: 'T1: Public API', value: 1 },
+        { label: 'T2: Open Web', value: 2 },
+        { label: 'T3: Restricted Web', value: 3 },
+        { label: 'T4: Social Platform', value: 4 },
+        { label: 'T5: Requires Auth', value: 5 },
+      ],
+    },
+    { key: 'legal_notes', label: 'Legal Notes', type: 'text', placeholder: 'ToS classification notes...' },
     { key: 'organizer_id', label: 'Organizer', type: 'select', options: organizerOptions },
     { key: 'location_id', label: 'Location', type: 'select', options: locationOptions },
   ];
