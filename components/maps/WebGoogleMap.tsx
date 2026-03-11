@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useState, useRef, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import {
   GoogleMap,
@@ -112,6 +112,38 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
       router.push(`/event/${eventId}`);
     }
   }, [router]);
+
+  // Inject CSS overrides for the Google Maps InfoWindow bubble to match the current theme
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const styleId = 'crowdia-map-infowindow-theme';
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    if (colorScheme === 'dark') {
+      styleEl.textContent = `
+        .gm-style .gm-style-iw-c {
+          background-color: #141414 !important;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.8) !important;
+        }
+        .gm-style .gm-style-iw-d { overflow: hidden !important; }
+        .gm-style .gm-style-iw-t::after {
+          background: linear-gradient(45deg, #141414 50%, transparent 50%) !important;
+        }
+        .gm-style button.gm-ui-hover-effect > span {
+          background-color: #ECEDEE !important;
+        }
+      `;
+    } else {
+      styleEl.textContent = '';
+    }
+    return () => {
+      document.getElementById(styleId)?.remove();
+    };
+  }, [colorScheme]);
 
   const handleMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
@@ -327,11 +359,13 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
           {selectedVenueGroup.length === 1 ? (
             <EventInfoCard
               event={selectedVenueGroup[0]}
+              colorScheme={colorScheme}
               onClick={() => handleEventClick(selectedVenueGroup[0].id!)}
             />
           ) : (
             <VenueInfoCard
               events={selectedVenueGroup}
+              colorScheme={colorScheme}
               onEventClick={(id) => handleEventClick(id)}
             />
           )}
@@ -377,10 +411,12 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
 // Info window for multiple events at the same venue
 interface VenueInfoCardProps {
   events: EventWithStats[];
+  colorScheme: 'light' | 'dark';
   onEventClick: (id: string) => void;
 }
 
-function VenueInfoCard({ events, onEventClick }: VenueInfoCardProps) {
+function VenueInfoCard({ events, colorScheme, onEventClick }: VenueInfoCardProps) {
+  const colors = Colors[colorScheme];
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -394,7 +430,7 @@ function VenueInfoCard({ events, onEventClick }: VenueInfoCardProps) {
 
   return (
     <div style={{ width: 240, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: colors.text, marginBottom: 8 }}>
         {events[0].location_name || 'Venue'} · {events.length} events
       </div>
       {events.map((event, idx) => (
@@ -403,14 +439,14 @@ function VenueInfoCard({ events, onEventClick }: VenueInfoCardProps) {
           onClick={() => onEventClick(event.id!)}
           style={{
             padding: '6px 0',
-            borderTop: idx > 0 ? '1px solid #eee' : 'none',
+            borderTop: idx > 0 ? `1px solid ${colors.cardBorder}` : 'none',
             cursor: 'pointer',
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 2 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 2 }}>
             {event.title}
           </div>
-          <div style={{ fontSize: 11, color: '#888' }}>
+          <div style={{ fontSize: 11, color: colors.textMuted }}>
             {formatDate(event.event_start_time)}
           </div>
         </div>
@@ -422,10 +458,12 @@ function VenueInfoCard({ events, onEventClick }: VenueInfoCardProps) {
 // Info window content for selected event
 interface EventInfoCardProps {
   event: EventWithStats;
+  colorScheme: 'light' | 'dark';
   onClick: () => void;
 }
 
-function EventInfoCard({ event, onClick }: EventInfoCardProps) {
+function EventInfoCard({ event, colorScheme, onClick }: EventInfoCardProps) {
+  const colors = Colors[colorScheme];
   const imageUrl = getProxiedImageUrl(event.cover_image_url);
   const hasValidImage = !!imageUrl;
 
@@ -483,7 +521,7 @@ function EventInfoCard({ event, onClick }: EventInfoCardProps) {
             style={{
               fontSize: 14,
               fontWeight: 600,
-              color: '#1a1a1a',
+              color: colors.text,
               marginBottom: 4,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -492,13 +530,13 @@ function EventInfoCard({ event, onClick }: EventInfoCardProps) {
           >
             {event.title}
           </div>
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
+          <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 2 }}>
             {formatDate(event.event_start_time)}
           </div>
           <div
             style={{
               fontSize: 12,
-              color: '#888',
+              color: colors.textMuted,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
