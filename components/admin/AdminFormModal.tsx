@@ -23,7 +23,7 @@ export interface FormField {
   type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'datetime';
   required?: boolean;
   placeholder?: string;
-  options?: { label: string; value: string }[];
+  options?: { label: string; value: string | number }[];
 }
 
 interface Props {

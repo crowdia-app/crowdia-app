@@ -25,7 +25,7 @@ export interface Column<T = any> {
 export interface FilterOption {
   key: string;
   label: string;
-  options: { label: string; value: string | boolean }[];
+  options: { label: string; value: string | boolean | number }[];
 }
 
 interface Props<T = any> {
