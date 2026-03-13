@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useInterestsStore } from '@/stores/interestsStore';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Magenta, Charcoal, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
@@ -43,12 +43,14 @@ export default function ProfileScreen() {
   const [orgReason, setOrgReason] = useState('');
   const [isSubmittingOrgRequest, setIsSubmittingOrgRequest] = useState(false);
 
-  // Load full event data when profile tab is opened
-  useEffect(() => {
-    if (user) {
-      loadInterestedEvents(user.id);
-    }
-  }, [user, loadInterestedEvents]);
+  // Reload saved events every time this tab is focused (same pattern as saved.tsx)
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadInterestedEvents(user.id);
+      }
+    }, [user, loadInterestedEvents])
+  );
 
   // Load organizer request status
   const loadOrgRequest = useCallback(async () => {
