@@ -23,6 +23,11 @@ export default function UserOnboardingScreen() {
       return;
     }
 
+    if (!user?.id) {
+      Alert.alert('Error', 'Session expired. Please log in again.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Upsert user profile and award 25 points for completing profile
@@ -30,7 +35,7 @@ export default function UserOnboardingScreen() {
       const { error: profileError } = await supabase
         .from('users')
         .upsert({
-          id: user?.id,
+          id: user.id,
           display_name: displayName.trim(),
           username: username.trim().toLowerCase(),
           points: (userProfile?.points || 0) + 25,
@@ -45,7 +50,12 @@ export default function UserOnboardingScreen() {
       router.replace('/(tabs)');
     } catch (err) {
       console.error('Onboarding error:', err);
-      Alert.alert('Error', 'Failed to save profile. Please try again.');
+      const pgError = err as { code?: string; message?: string };
+      if (pgError?.code === '23505') {
+        Alert.alert('Username taken', 'That username is already in use. Please choose a different one.');
+      } else {
+        Alert.alert('Error', 'Failed to save profile. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
