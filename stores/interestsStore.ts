@@ -48,7 +48,13 @@ export const useInterestsStore = create<InterestsState>((set, get) => ({
     set({ isLoading: true });
     try {
       const events = await fetchUserInterestedEvents(userId);
-      set({ interestedEvents: events, isLoading: false });
+      // Sync interestedEventIds to match the DB-loaded events so heart buttons
+      // stay accurate even after cross-device changes or a fresh session.
+      set({
+        interestedEvents: events,
+        interestedEventIds: new Set(events.map((e) => e.id!)),
+        isLoading: false,
+      });
     } catch (err) {
       console.error('Failed to load interested events:', err);
       set({ isLoading: false });
