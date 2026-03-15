@@ -81,7 +81,7 @@ export class AuthService {
     const { data, error } = await supabase
       .from('organizers')
       .select('*')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) throw error;

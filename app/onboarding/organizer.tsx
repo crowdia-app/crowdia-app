@@ -34,7 +34,7 @@ export default function OrganizerOnboardingScreen() {
           organization_name: organizationName,
           address: address || null,
         })
-        .eq('id', user.id);
+        .eq('user_id', user.id);
 
       if (updateError) throw updateError;
 
