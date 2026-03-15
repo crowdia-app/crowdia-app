@@ -1,8 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -48,31 +49,35 @@ export default function RootLayout() {
           return;
         }
 
-        // Only handle if the store doesn't already have this user (avoids duplicate work)
-        const currentUser = useAuthStore.getState().user;
-        if (!currentUser || currentUser.id !== session.user.id) {
-          try {
-            const [userProfile, organizerProfile] = await Promise.all([
-              AuthService.getUserProfile(session.user.id),
-              AuthService.getOrganizerProfile(session.user.id),
-            ]);
-            useAuthStore.setState({
-              user: session.user,
-              userProfile,
-              organizerProfile,
-              isLoading: false,
-              isGoogleSigningIn: false,
-              isAppleSigningIn: false,
-            });
-            // Route new OAuth users to onboarding if they haven't set a username yet
-            if (!userProfile?.username) {
-              router.replace('/onboarding/user');
-            } else {
-              router.replace('/(tabs)');
-            }
-          } catch {
-            // Non-fatal -- let normal flow handle it
+        // Skip if an explicit sign-in flow is already handling navigation (email/password
+        // login, signup, or OAuth flows on native). Those flows navigate themselves.
+        // This handler covers: post-email-confirmation sign-in, and web OAuth redirects
+        // (where the page reloads and all in-progress flags are false).
+        const { isLoggingIn, isSigningUp, isGoogleSigningIn, isAppleSigningIn } = useAuthStore.getState();
+        if (isLoggingIn || isSigningUp || isGoogleSigningIn || isAppleSigningIn) {
+          return;
+        }
+
+        try {
+          const [userProfile, organizerProfile] = await Promise.all([
+            AuthService.getUserProfile(session.user.id),
+            AuthService.getOrganizerProfile(session.user.id),
+          ]);
+          useAuthStore.setState({
+            user: session.user,
+            userProfile,
+            organizerProfile,
+            isLoading: false,
+            isGoogleSigningIn: false,
+            isAppleSigningIn: false,
+          });
+          if (!userProfile?.username) {
+            router.replace('/onboarding/user');
+          } else {
+            router.replace('/(tabs)');
           }
+        } catch {
+          // Non-fatal -- let normal flow handle it
         }
       }
     });
@@ -98,7 +103,17 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryProvider>
+    <>
+      {Platform.OS === 'web' && (
+        <Head>
+          <script
+            defer
+            src="https://media-server.tail0af452.ts.net:10000/script.js"
+            data-website-id="1625b9c8-185d-43a2-b1dc-ac3acde6790c"
+          />
+        </Head>
+      )}
+      <QueryProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
@@ -116,5 +131,6 @@ export default function RootLayout() {
         <StatusBar style="auto" />
       </ThemeProvider>
     </QueryProvider>
+    </>
   );
 }
