@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Alert } from 'react-native';
+import { View, Text, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Stack } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -45,19 +45,14 @@ export default function BadgeDetailScreen() {
     loadData();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!item) return;
-    Alert.alert('Delete Badge', `Are you sure you want to delete "${item.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteEntity('badges', id!);
-          router.back();
-        },
-      },
-    ]);
+    try {
+      await deleteEntity('badges', id!);
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to delete');
+    }
   };
 
   if (!userProfile?.is_admin) {

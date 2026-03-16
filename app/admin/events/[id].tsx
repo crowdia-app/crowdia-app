@@ -144,19 +144,14 @@ export default function EventDetailScreen() {
     loadData();
   };
 
-  const handleDelete = () => {
-    Alert.alert('Delete Event', 'Are you sure you want to delete this event?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          if (!id) return;
-          await deleteEntity('events', id);
-          router.back();
-        },
-      },
-    ]);
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteEntity('events', id);
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to delete');
+    }
   };
 
   return (

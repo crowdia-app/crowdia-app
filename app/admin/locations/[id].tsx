@@ -91,22 +91,13 @@ export default function LocationDetailScreen() {
     loadData();
   };
 
-  const handleDelete = () => {
-    Alert.alert('Delete Location', 'Are you sure you want to delete this location?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteEntity('locations', id!);
-            router.back();
-          } catch (error: any) {
-            Alert.alert('Error', error?.message || 'Failed to delete');
-          }
-        },
-      },
-    ]);
+  const handleDelete = async () => {
+    try {
+      await deleteEntity('locations', id!);
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to delete');
+    }
   };
 
   return (

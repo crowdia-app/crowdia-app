@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text, Alert } from 'react-native';
+import { Text, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -154,23 +154,14 @@ export default function PotentialSourceDetail() {
     setShowModal(true);
   };
 
-  const handleDelete = () => {
-    Alert.alert('Delete', 'Are you sure you want to delete this potential source?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          if (!id) return;
-          try {
-            await deleteEntity('potential_sources', id);
-            router.back();
-          } catch (error: any) {
-            Alert.alert('Error', error?.message || 'Failed to delete');
-          }
-        },
-      },
-    ]);
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteEntity('potential_sources', id);
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to delete');
+    }
   };
 
   const handleSubmit = async (values: Record<string, any>) => {

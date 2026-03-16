@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Text } from 'react-native';
+import { Alert, Text, Platform } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -197,19 +197,14 @@ export default function SourceDetailScreen() {
     loadData();
   };
 
-  const handleDelete = () => {
-    Alert.alert('Delete Source', 'Are you sure you want to delete this event source?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          if (!id) return;
-          await deleteEntity('event_sources', id);
-          router.back();
-        },
-      },
-    ]);
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteEntity('event_sources', id);
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to delete');
+    }
   };
 
   return (

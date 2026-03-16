@@ -46,19 +46,14 @@ export default function CategoryDetailScreen() {
     loadData();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!item) return;
-    Alert.alert('Delete Category', `Are you sure you want to delete "${item.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteEntity('categories', id!);
-          router.back();
-        },
-      },
-    ]);
+    try {
+      await deleteEntity('categories', id!);
+      router.back();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to delete');
+    }
   };
 
   if (!userProfile?.is_admin) {
