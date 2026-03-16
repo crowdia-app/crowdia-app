@@ -327,27 +327,49 @@ export function WebGoogleMap(props: WebGoogleMapProps) {
           );
         }
 
-        // Multiple events at same venue — show count badge marker
+        // Multiple events at same venue — lightbulb marker with count badge
         return (
-          <MarkerF
+          <OverlayView
             key={`venue-${first.location_lat}-${first.location_lng}`}
             position={position}
-            label={{
-              text: String(count),
-              color: '#fff',
-              fontSize: '13px',
-              fontWeight: 'bold',
-            }}
-            icon={{
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 18,
-              fillColor: Magenta[500],
-              fillOpacity: 1,
-              strokeColor: '#fff',
-              strokeWeight: 2,
-            }}
-            onClick={() => handleMarkerClick(first, group)}
-          />
+            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+            getPixelPositionOffset={getMarkerOffset}
+          >
+            <div
+              style={{ position: 'relative', cursor: 'pointer', width: MARKER_SIZE, height: MARKER_SIZE }}
+              onClick={() => handleMarkerClick(first, group)}
+            >
+              <Image
+                source={crowdiaLogo}
+                style={{
+                  width: MARKER_SIZE,
+                  height: MARKER_SIZE,
+                  filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.4))',
+                } as any}
+                contentFit="contain"
+              />
+              <div style={{
+                position: 'absolute',
+                top: -5,
+                right: -5,
+                backgroundColor: '#fff',
+                color: Magenta[500],
+                borderRadius: 9,
+                width: 18,
+                height: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 10,
+                fontWeight: 700,
+                border: `1.5px solid ${Magenta[500]}`,
+                pointerEvents: 'none',
+                lineHeight: '1',
+              }}>
+                {count}
+              </div>
+            </div>
+          </OverlayView>
         );
       })}
 

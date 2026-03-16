@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Platform, useColorScheme, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Platform, useColorScheme, TouchableOpacity, Image } from 'react-native';
+
+const crowdiaLogo = require('@/assets/images/crowdia-logo-icon-transparent.png');
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { EventWithStats } from '@/types/database';
@@ -154,6 +156,31 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
     setSelectedVenueGroup(null);
   }, []);
 
+  const renderCluster = useCallback((cluster: any) => {
+    const { geometry, properties, onPress } = cluster;
+    const coordinate = {
+      latitude: geometry.coordinates[1],
+      longitude: geometry.coordinates[0],
+    };
+    return (
+      <NativeMarker
+        key={`cluster-${geometry.coordinates[0]}-${geometry.coordinates[1]}`}
+        coordinate={coordinate}
+        onPress={onPress}
+        tracksViewChanges={false}
+      >
+        <View style={styles.clusterMarker}>
+          <Image source={crowdiaLogo} style={styles.clusterLogo} />
+          <View style={[styles.clusterBadge, { backgroundColor: '#fff', borderColor: Magenta[500] }]}>
+            <Text style={[styles.clusterBadgeText, { color: Magenta[500] }]}>
+              {properties.point_count}
+            </Text>
+          </View>
+        </View>
+      </NativeMarker>
+    );
+  }, []);
+
   // For web, use Google Maps JavaScript API
   if (Platform.OS === 'web' && WebGoogleMap) {
     return (
@@ -191,6 +218,7 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
         showsMyLocationButton
         onPress={handleMapPress}
         // Clustering props (only used if ClusteredMapView is available)
+        renderCluster={renderCluster}
         clusterColor={Magenta[500]}
         clusterTextColor="#FFFFFF"
         clusterFontFamily="System"
@@ -371,6 +399,29 @@ const styles = StyleSheet.create({
   },
   calloutContainer: {
     backgroundColor: 'transparent',
+  },
+  clusterMarker: {
+    width: 32,
+    height: 32,
+  },
+  clusterLogo: {
+    width: 32,
+    height: 32,
+  },
+  clusterBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  clusterBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   venueBadge: {
     width: 32,
