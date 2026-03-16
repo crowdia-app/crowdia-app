@@ -8,6 +8,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { GoogleIcon } from '@/components/ui/google-icon';
 import { AppleIcon } from '@/components/ui/apple-icon';
+import { supabase } from '@/lib/supabase';
 
 // On web, wrap form fields in a <form> so browsers recognize it for autofill
 function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
@@ -32,6 +33,8 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [emailConfirmationPending, setEmailConfirmationPending] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
 
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
@@ -89,7 +92,17 @@ export default function SignupScreen() {
 
     try {
       await signUp(email, password);
-      router.replace('/onboarding/user');
+      // Check if a session was established. When email confirmation is required,
+      // Supabase returns a user but no session. In that case, we can't write to
+      // the DB (RLS requires auth.uid()), so we show a "check your email" screen
+      // instead of routing to onboarding where the profile upsert would fail.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.replace('/onboarding/user');
+      } else {
+        setPendingEmail(email);
+        setEmailConfirmationPending(true);
+      }
     } catch {
       // Error is displayed inline via the store's error state
     }

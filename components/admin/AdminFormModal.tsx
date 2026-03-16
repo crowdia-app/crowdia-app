@@ -42,11 +42,13 @@ export function AdminFormModal({ visible, title, fields, initialValues, onSubmit
   const [values, setValues] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [expandedSelect, setExpandedSelect] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setValues(initialValues || {});
       setExpandedSelect(null);
+      setShowDeleteConfirm(false);
     }
   }, [visible, initialValues]);
 
@@ -70,10 +72,7 @@ export function AdminFormModal({ visible, title, fields, initialValues, onSubmit
   };
 
   const handleDelete = () => {
-    Alert.alert('Delete', 'Are you sure you want to delete this item?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: onDelete },
-    ]);
+    setShowDeleteConfirm(true);
   };
 
   const setValue = (key: string, value: any) => {
@@ -236,11 +235,30 @@ export function AdminFormModal({ visible, title, fields, initialValues, onSubmit
             </View>
           ))}
 
-          {onDelete && (
+          {onDelete && !showDeleteConfirm && (
             <TouchableOpacity style={[styles.deleteButton, { borderColor: Colors.red[500] }]} onPress={handleDelete}>
               <IconSymbol name="trash" size={16} color={Colors.red[500]} />
               <Text style={[styles.deleteText, { color: Colors.red[500] }]}>Delete</Text>
             </TouchableOpacity>
+          )}
+          {onDelete && showDeleteConfirm && (
+            <View style={[styles.deleteConfirmBox, { borderColor: Colors.red[500] }]}>
+              <Text style={[styles.deleteConfirmText, { color: colors.text }]}>Are you sure? This cannot be undone.</Text>
+              <View style={styles.deleteConfirmButtons}>
+                <TouchableOpacity
+                  style={[styles.deleteConfirmBtn, { backgroundColor: Colors.red[500] }]}
+                  onPress={() => { setShowDeleteConfirm(false); onDelete(); }}
+                >
+                  <Text style={styles.deleteConfirmBtnText}>Delete</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteConfirmBtn, { backgroundColor: colors.inputBackground }]}
+                  onPress={() => setShowDeleteConfirm(false)}
+                >
+                  <Text style={[styles.deleteConfirmBtnText, { color: colors.text }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
 
           <View style={{ height: 40 }} />
@@ -321,4 +339,20 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
   },
   deleteText: { fontSize: Typography.md, fontWeight: '600' },
+  deleteConfirmBox: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  deleteConfirmText: { fontSize: Typography.sm },
+  deleteConfirmButtons: { flexDirection: 'row', gap: Spacing.sm },
+  deleteConfirmBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+  },
+  deleteConfirmBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: '600' },
 });

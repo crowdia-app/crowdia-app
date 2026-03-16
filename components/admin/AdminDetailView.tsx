@@ -32,6 +32,7 @@ export function AdminDetailView({ title, subtitle, sections, isLoading, onEdit, 
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   if (isLoading) {
     return (
@@ -59,10 +60,27 @@ export function AdminDetailView({ title, subtitle, sections, isLoading, onEdit, 
               <Text style={styles.actionBtnText}>Edit</Text>
             </TouchableOpacity>
           )}
-          {onDelete && (
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.red[500] }]} onPress={onDelete}>
+          {onDelete && !showDeleteConfirm && (
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: Colors.red[500] }]} onPress={() => setShowDeleteConfirm(true)}>
               <IconSymbol name="trash" size={16} color="#fff" />
             </TouchableOpacity>
+          )}
+          {onDelete && showDeleteConfirm && (
+            <View style={styles.deleteConfirmRow}>
+              <Text style={[styles.deleteConfirmLabel, { color: colors.text }]}>Delete?</Text>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: Colors.red[500] }]}
+                onPress={() => { setShowDeleteConfirm(false); onDelete(); }}
+              >
+                <Text style={styles.actionBtnText}>Yes</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.divider }]}
+                onPress={() => setShowDeleteConfirm(false)}
+              >
+                <Text style={[styles.actionBtnText, { color: colors.text }]}>No</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </View>
@@ -155,6 +173,8 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   actionBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: '600' },
+  deleteConfirmRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  deleteConfirmLabel: { fontSize: Typography.sm, fontWeight: '500' },
   actionsRow: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.lg,
