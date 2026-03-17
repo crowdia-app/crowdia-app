@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from '@/components/events';
@@ -15,6 +16,7 @@ import { Colors, Spacing, Typography, Magenta } from '@/constants/theme';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
 import { useFilteredEventsForMap } from '@/hooks/useFilteredEvents';
 import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
+import { useUserLocation } from '@/hooks/useUserLocation';
 
 export default function MapScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
@@ -25,6 +27,16 @@ export default function MapScreen() {
   const [filterVisible, setFilterVisible] = useState(false);
 
   const { searchQuery, handleSearchChange } = useDebouncedSearch();
+  const { requestLocation, hasLocation } = useUserLocation();
+
+  // On native, auto-request location when the map first opens so the map
+  // can animate to the user's position (web handles this in WebGoogleMap.onLoad)
+  useEffect(() => {
+    if (Platform.OS !== 'web' && !hasLocation) {
+      requestLocation();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const {
     eventsWithCoordinates,

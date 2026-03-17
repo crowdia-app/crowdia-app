@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback, useState } from 'react';
+import React, { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Platform, useColorScheme, TouchableOpacity, Image } from 'react-native';
 
 const crowdiaLogo = require('@/assets/images/crowdia-logo-icon-transparent.png');
@@ -155,6 +155,26 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
   const handleMapPress = useCallback(() => {
     setSelectedVenueGroup(null);
   }, []);
+
+  // Track whether we've already animated to the user's location this session
+  const hasPannedToUser = useRef(false);
+
+  // Animate native map to user location when it becomes available after initial mount
+  // (initialRegion is static — won't update if location arrives after mount)
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (!userLocation || !mapRef.current || hasPannedToUser.current) return;
+    hasPannedToUser.current = true;
+    mapRef.current.animateToRegion(
+      {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: USER_LOCATION_DELTA,
+        longitudeDelta: USER_LOCATION_DELTA,
+      },
+      600,
+    );
+  }, [userLocation]);
 
   const renderCluster = useCallback((cluster: any) => {
     const { geometry, properties, onPress } = cluster;
