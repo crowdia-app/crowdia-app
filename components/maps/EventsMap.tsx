@@ -162,8 +162,9 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
       latitude: geometry.coordinates[1],
       longitude: geometry.coordinates[0],
     };
+    const Marker = NativeMarker as React.ComponentType<any>;
     return (
-      <NativeMarker
+      <Marker
         key={`cluster-${geometry.coordinates[0]}-${geometry.coordinates[1]}`}
         coordinate={coordinate}
         onPress={onPress}
@@ -177,7 +178,7 @@ export function EventsMap({ events, initialRegion }: EventsMapProps) {
             </Text>
           </View>
         </View>
-      </NativeMarker>
+      </Marker>
     );
   }, []);
 
