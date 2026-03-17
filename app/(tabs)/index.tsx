@@ -21,6 +21,8 @@ import { EventWithStats } from '@/types/database';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
 import { useFilteredEventsInfinite, useFilteredEventsForMap } from '@/hooks/useFilteredEvents';
 import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
+import { useInterestsStore } from '@/stores/interestsStore';
+import { useAuthStore } from '@/stores/authStore';
 
 type ViewMode = 'list' | 'map';
 
@@ -31,6 +33,9 @@ export default function EventsFeedScreen() {
   const router = useRouter();
 
   const { debouncedSearch, hasActiveFilters } = useEventsFilterStore();
+  const { user } = useAuthStore();
+  const { interestedEvents } = useInterestsStore();
+  const savedCount = user ? interestedEvents.length : 0;
   const [filterVisible, setFilterVisible] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('map');
 
@@ -151,6 +156,22 @@ export default function EventsFeedScreen() {
         <View style={styles.headerRow}>
           <GlowingLogo size={32} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>Crowdia</Text>
+          {/* Saved events button */}
+          <Pressable
+            style={styles.savedButton}
+            onPress={() => router.push('/(tabs)/saved')}
+            accessibilityLabel="Saved events"
+            accessibilityRole="button"
+          >
+            <Ionicons name="heart" size={24} color={Magenta[500]} />
+            {savedCount > 0 && (
+              <View style={styles.savedBadge}>
+                <Text style={styles.savedBadgeText}>
+                  {savedCount > 99 ? '99+' : savedCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
           {/* View toggle */}
           <View style={[styles.viewToggle, { backgroundColor: colors.inputBackground }]}>
             <Pressable
@@ -257,6 +278,30 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     flex: 1,
+  },
+  savedButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: Magenta[500],
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  savedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
   },
   viewToggle: {
     flexDirection: 'row',

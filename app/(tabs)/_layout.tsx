@@ -6,14 +6,11 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '@/stores/authStore';
-import { useInterestsStore } from '@/stores/interestsStore';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { userProfile, user } = useAuthStore();
-  const { interestedEvents } = useInterestsStore();
+  const { userProfile } = useAuthStore();
   const isAdmin = userProfile?.is_admin || false;
-  const savedCount = user ? interestedEvents.length : 0;
 
   return (
     <Tabs
@@ -38,9 +35,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="saved"
         options={{
-          title: 'Saved',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="heart.fill" color={color} />,
-          tabBarBadge: savedCount > 0 ? savedCount : undefined,
+          href: null,
         }}
       />
       <Tabs.Screen
