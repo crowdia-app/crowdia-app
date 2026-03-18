@@ -16,6 +16,7 @@ import { EventCard, SearchBar } from '@/components/events';
 import { FilterDrawer, ActiveFiltersRow } from '@/components/filters';
 import { EventsMap } from '@/components/maps';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
+import { LoginPromptModal } from '@/components/ui/LoginPromptModal';
 import { Colors, Spacing, Typography, Magenta, BorderRadius } from '@/constants/theme';
 import { EventWithStats } from '@/types/database';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
@@ -23,6 +24,7 @@ import { useFilteredEventsInfinite, useFilteredEventsForMap } from '@/hooks/useF
 import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useLoginPrompt } from '@/hooks/useLoginPrompt';
 
 type ViewMode = 'list' | 'map';
 
@@ -38,6 +40,7 @@ export default function EventsFeedScreen() {
   const savedCount = user ? interestedEvents.length : 0;
   const [filterVisible, setFilterVisible] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('map');
+  const { visible: loginPromptVisible, dismiss: dismissLoginPrompt, show: showLoginPrompt } = useLoginPrompt();
 
   const { searchQuery, handleSearchChange } = useDebouncedSearch();
 
@@ -77,9 +80,9 @@ export default function EventsFeedScreen() {
 
   const renderEvent = useCallback(
     ({ item }: { item: EventWithStats }) => (
-      <EventCard event={item} onPress={() => handleEventPress(item.id!)} />
+      <EventCard event={item} onPress={() => handleEventPress(item.id!)} onRequireLogin={showLoginPrompt} />
     ),
-    [handleEventPress]
+    [handleEventPress, showLoginPrompt]
   );
 
   const keyExtractor = useCallback((item: EventWithStats) => item.id!, []);
@@ -257,6 +260,9 @@ export default function EventsFeedScreen() {
       ) : (
         <EventsMap events={eventsWithCoordinates} />
       )}
+
+      {/* Login prompt for unauthenticated users */}
+      <LoginPromptModal visible={loginPromptVisible} onDismiss={dismissLoginPrompt} />
     </View>
   );
 }
