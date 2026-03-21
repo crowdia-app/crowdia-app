@@ -21,6 +21,7 @@ import { useAuthStore } from '@/stores/authStore';
 interface EventCardProps {
   event: EventWithStats;
   onPress?: () => void;
+  onRequireLogin?: () => void;
 }
 
 // Events are always in Palermo (Europe/Rome) — display in local event time
@@ -37,7 +38,7 @@ const formatDate = (dateString: string) => {
   };
 };
 
-export const EventCard = memo(function EventCard({ event, onPress }: EventCardProps) {
+export const EventCard = memo(function EventCard({ event, onPress, onRequireLogin }: EventCardProps) {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
 
@@ -51,12 +52,15 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
   const hasValidImage = !!imageUrl && !imageError;
 
   const handleHeartPress = useCallback(() => {
-    if (!user) return;
+    if (!user) {
+      onRequireLogin?.();
+      return;
+    }
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     toggleInterest(user.id, event.id!, event);
-  }, [user, event.id, toggleInterest]);
+  }, [user, event.id, toggleInterest, onRequireLogin]);
 
   return (
     <Pressable
@@ -102,23 +106,21 @@ export const EventCard = memo(function EventCard({ event, onPress }: EventCardPr
               {dateInfo.time}
             </Text>
           </View>
-          {/* Heart button -- only show when logged in */}
-          {user ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.heartButton,
-                pressed && styles.heartButtonPressed,
-              ]}
-              onPress={handleHeartPress}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons
-                name={interested ? 'heart' : 'heart-outline'}
-                size={20}
-                color={interested ? Magenta[500] : colors.textMuted}
-              />
-            </Pressable>
-          ) : null}
+          {/* Heart button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.heartButton,
+              pressed && styles.heartButtonPressed,
+            ]}
+            onPress={handleHeartPress}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={interested ? 'heart' : 'heart-outline'}
+              size={20}
+              color={interested ? Magenta[500] : colors.textMuted}
+            />
+          </Pressable>
         </View>
 
         {/* Title */}
