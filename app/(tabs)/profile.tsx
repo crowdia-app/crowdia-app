@@ -25,6 +25,11 @@ import {
   submitOrganizerRequest,
   type OrganizerRequest,
 } from '@/services/organizer-requests';
+import {
+  getMyVoiceRequest,
+  submitVoiceRequest,
+  type VoiceRequest,
+} from '@/services/voices';
 
 const numberFormatter = new Intl.NumberFormat();
 
@@ -42,6 +47,13 @@ export default function ProfileScreen() {
   const [orgName, setOrgName] = useState('');
   const [orgReason, setOrgReason] = useState('');
   const [isSubmittingOrgRequest, setIsSubmittingOrgRequest] = useState(false);
+
+  // Voice request state
+  const [voiceRequest, setVoiceRequest] = useState<VoiceRequest | null | undefined>(undefined);
+  const [showVoiceRequestModal, setShowVoiceRequestModal] = useState(false);
+  const [voiceInstagram, setVoiceInstagram] = useState('');
+  const [voiceReason, setVoiceReason] = useState('');
+  const [isSubmittingVoiceRequest, setIsSubmittingVoiceRequest] = useState(false);
 
   // Reload saved events every time this tab is focused (same pattern as saved.tsx)
   useFocusEffect(
@@ -63,6 +75,17 @@ export default function ProfileScreen() {
     loadOrgRequest();
   }, [loadOrgRequest]);
 
+  // Load voice request status
+  const loadVoiceRequest = useCallback(async () => {
+    if (!user) return;
+    const req = await getMyVoiceRequest();
+    setVoiceRequest(req);
+  }, [user]);
+
+  useEffect(() => {
+    loadVoiceRequest();
+  }, [loadVoiceRequest]);
+
   const handleSubmitOrgRequest = async () => {
     if (!user || !orgName.trim()) return;
     setIsSubmittingOrgRequest(true);
@@ -81,6 +104,31 @@ export default function ProfileScreen() {
       }
     } finally {
       setIsSubmittingOrgRequest(false);
+    }
+  };
+
+  const handleSubmitVoiceRequest = async () => {
+    if (!user) return;
+    setIsSubmittingVoiceRequest(true);
+    try {
+      await submitVoiceRequest(
+        user.id,
+        voiceInstagram.trim() || undefined,
+        voiceReason.trim() || undefined
+      );
+      setShowVoiceRequestModal(false);
+      setVoiceInstagram('');
+      setVoiceReason('');
+      await loadVoiceRequest();
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to submit request';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+    } finally {
+      setIsSubmittingVoiceRequest(false);
     }
   };
 
@@ -406,6 +454,96 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
+        {/* Become a Voice / Voice Status */}
+        {!userProfile?.is_voice ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              VOICES
+            </Text>
+            {voiceRequest === undefined ? null : voiceRequest === null ? (
+              // No request submitted yet
+              <Pressable
+                style={({ pressed }) => [
+                  styles.card,
+                  styles.cardRow,
+                  { backgroundColor: colors.card, opacity: pressed ? 0.7 : 1 },
+                ]}
+                onPress={() => setShowVoiceRequestModal(true)}
+              >
+                <Ionicons name="mic-outline" size={20} color={Magenta[500]} />
+                <View style={styles.cardRowContent}>
+                  <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                    Become a Voice
+                  </Text>
+                  <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                    Apply to be a Crowdia influencer
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              </Pressable>
+            ) : voiceRequest.status === 'pending' ? (
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
+                <View style={styles.cardRow}>
+                  <Ionicons name="time-outline" size={20} color={colors.warning} />
+                  <View style={styles.cardRowContent}>
+                    <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                      Application Under Review
+                    </Text>
+                    <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                      Submitted {new Date(voiceRequest.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View style={[styles.requestStatusBadge, { borderColor: colors.warning }]}>
+                    <Text style={[styles.requestStatusText, { color: colors.warning }]}>Pending</Text>
+                  </View>
+                </View>
+              </View>
+            ) : voiceRequest.status === 'rejected' ? (
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
+                <View style={styles.cardRow}>
+                  <Ionicons name="close-circle-outline" size={20} color={colors.error} />
+                  <View style={styles.cardRowContent}>
+                    <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                      Application Not Approved
+                    </Text>
+                    {voiceRequest.rejection_reason ? (
+                      <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                        {voiceRequest.rejection_reason}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={[styles.requestStatusBadge, { borderColor: colors.error }]}>
+                    <Text style={[styles.requestStatusText, { color: colors.error }]}>Rejected</Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          // User is a voice — show their voice badge
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+              VOICES
+            </Text>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <View style={styles.cardRow}>
+                <Ionicons name="mic" size={20} color={Magenta[500]} />
+                <View style={styles.cardRowContent}>
+                  <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                    You're a Voice
+                  </Text>
+                  <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                    Your attendance is featured on event pages
+                  </Text>
+                </View>
+                <View style={[styles.requestStatusBadge, { borderColor: Magenta[500] }]}>
+                  <Text style={[styles.requestStatusText, { color: Magenta[500] }]}>Active</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Saved Events */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
@@ -618,6 +756,91 @@ export default function ProfileScreen() {
         {/* Bottom Spacing */}
         <View style={{ height: insets.bottom + Spacing.xxxl }} />
       </ScrollView>
+
+      {/* Become a Voice Modal */}
+      <Modal
+        visible={showVoiceRequestModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowVoiceRequestModal(false);
+          setVoiceInstagram('');
+          setVoiceReason('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Become a Voice</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Voices are Crowdia influencers whose attendance is featured on event pages. Apply below and an admin will review your request.
+            </Text>
+
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+              Instagram handle (optional)
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.divider,
+                },
+              ]}
+              value={voiceInstagram}
+              onChangeText={setVoiceInstagram}
+              placeholder="@yourhandle"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+            />
+
+            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+              Why do you want to be a Voice? (optional)
+            </Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                styles.textInputMultiline,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.divider,
+                },
+              ]}
+              value={voiceReason}
+              onChangeText={setVoiceReason}
+              placeholder="Tell us about yourself and your connection to the Palermo scene..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: colors.background }]}
+                onPress={() => {
+                  setShowVoiceRequestModal(false);
+                  setVoiceInstagram('');
+                  setVoiceReason('');
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: Magenta[500] }]}
+                onPress={handleSubmitVoiceRequest}
+                disabled={isSubmittingVoiceRequest}
+              >
+                {isSubmittingVoiceRequest ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Apply</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Become an Organizer Modal */}
       <Modal

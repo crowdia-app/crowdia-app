@@ -106,7 +106,7 @@ export const EventCard = memo(function EventCard({ event, onPress, onRequireLogi
               {dateInfo.time}
             </Text>
           </View>
-          {/* Heart button */}
+          {/* Heart button -- always visible; prompts login when tapped unauthenticated */}
           <Pressable
             style={({ pressed }) => [
               styles.heartButton,

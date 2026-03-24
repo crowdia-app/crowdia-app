@@ -157,7 +157,7 @@ export async function fetchEvents({
         break;
       case 'popular':
         query = query
-          .order('interested_count', { ascending: false })
+          .order('popularity_score', { ascending: false })
           .order('event_start_time', { ascending: true })
           .order('id', { ascending: true });
         break;

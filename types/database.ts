@@ -1020,6 +1020,7 @@ export type Database = {
           id: string
           is_admin: boolean
           is_premium: boolean
+          is_voice: boolean
           premium_expires_at: string | null
           points: number | null
           profile_image_url: string | null
@@ -1038,6 +1039,7 @@ export type Database = {
           id: string
           is_admin?: boolean
           is_premium?: boolean
+          is_voice?: boolean
           premium_expires_at?: string | null
           points?: number | null
           profile_image_url?: string | null
@@ -1056,6 +1058,7 @@ export type Database = {
           id?: string
           is_admin?: boolean
           is_premium?: boolean
+          is_voice?: boolean
           premium_expires_at?: string | null
           points?: number | null
           profile_image_url?: string | null
@@ -1064,6 +1067,66 @@ export type Database = {
           referral_points_awarded?: boolean | null
           updated_at?: string | null
           username?: string | null
+        }
+        Relationships: []
+      }
+      voice_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      voice_requests: {
+        Row: {
+          created_at: string
+          id: string
+          instagram_handle: string | null
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instagram_handle?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instagram_handle?: string | null
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1160,9 +1223,11 @@ export type Database = {
           location_name: string | null
           location_venue_type: string | null
           organizer_id: string | null
+          popularity_score: number | null
           source: string | null
           title: string | null
           updated_at: string | null
+          voice_count: number | null
         }
         Relationships: [
           {

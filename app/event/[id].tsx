@@ -22,9 +22,10 @@ import * as Haptics from 'expo-haptics';
 
 import { fetchEventById } from '@/services/events';
 import { fetchOrganizerById } from '@/services/organizers';
+import { getVoicesByEventId, type VoiceAttendee } from '@/services/voices';
 import { trackAffiliateClick } from '@/services/affiliate';
 import { supabase } from '@/lib/supabase';
-import { Colors, Spacing, BorderRadius, Typography, Magenta, Green } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Magenta, Green, Blue } from '@/constants/theme';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlaceholder';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
@@ -119,6 +120,14 @@ export default function EventDetailScreen() {
     queryKey: ['event', id],
     queryFn: () => fetchEventById(id!),
     enabled: !!id,
+  });
+
+  // Fetch voices attending this event (only when there are voices)
+  const { data: voices } = useQuery({
+    queryKey: ['event-voices', id],
+    queryFn: () => getVoicesByEventId(id!),
+    enabled: !!id && (event?.voice_count ?? 0) > 0,
+    staleTime: 60_000,
   });
 
   // Check if the current user has already checked in to this event
@@ -427,6 +436,33 @@ export default function EventDetailScreen() {
             </View>
           </Pressable>
 
+          {/* Venue Profile */}
+          {event.location_id ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.infoCard,
+                { backgroundColor: colors.card },
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={() => router.push(`/venue/${event.location_id}`)}
+            >
+              <View style={styles.infoRow}>
+                <View style={[styles.infoIcon, { backgroundColor: Blue[500] + '20' }]}>
+                  <Ionicons name="location-sharp" size={20} color={Blue[500]} />
+                </View>
+                <View style={styles.infoText}>
+                  <Text style={[styles.infoLabel, { color: colors.text }]}>
+                    {event.location_name ?? 'Venue'}
+                  </Text>
+                  <Text style={[styles.infoSubLabel, { color: colors.textSecondary }]}>
+                    View venue profile
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </View>
+            </Pressable>
+          ) : null}
+
           {/* Event Link */}
           {externalUrl ? (
             <Pressable
@@ -539,6 +575,57 @@ export default function EventDetailScreen() {
                 </View>
               ) : null}
             </View>
+          ) : null}
+
+          {/* Voices attending */}
+          {(event.voice_count ?? 0) > 0 ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.infoCard,
+                { backgroundColor: colors.card },
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={() => router.push(`/voices/${id}`)}
+            >
+              <View style={styles.infoRow}>
+                <View style={[styles.infoIcon, { backgroundColor: Magenta[500] + '20' }]}>
+                  <Ionicons name="mic" size={20} color={Magenta[500]} />
+                </View>
+                <View style={styles.infoText}>
+                  <Text style={[styles.infoLabel, { color: colors.text }]}>
+                    {event.voice_count} {(event.voice_count ?? 0) === 1 ? 'Voice' : 'Voices'} attending
+                  </Text>
+                  {voices && voices.length > 0 ? (
+                    <View style={styles.voiceAvatarRow}>
+                      {voices.slice(0, 4).map((v) => (
+                        v.user?.profile_image_url ? (
+                          <Image
+                            key={v.id}
+                            source={{ uri: v.user.profile_image_url }}
+                            style={styles.voiceAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View key={v.id} style={[styles.voiceAvatar, styles.voiceAvatarPlaceholder]}>
+                            <Ionicons name="person" size={10} color={Magenta[500]} />
+                          </View>
+                        )
+                      ))}
+                      {(event.voice_count ?? 0) > 4 ? (
+                        <Text style={[styles.voiceAvatarMore, { color: colors.textSecondary }]}>
+                          +{(event.voice_count ?? 0) - 4}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <Text style={[styles.infoSubLabel, { color: colors.textSecondary }]}>
+                      See who's going
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </View>
+            </Pressable>
           ) : null}
 
           {/* Source */}
@@ -833,6 +920,26 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: Typography.sm,
+  },
+  voiceAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  voiceAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  voiceAvatarPlaceholder: {
+    backgroundColor: Magenta[500] + '30',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceAvatarMore: {
+    fontSize: Typography.xs,
+    marginLeft: 2,
   },
   sourceContainer: {
     marginTop: Spacing.lg,
