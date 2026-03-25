@@ -1,42 +1,46 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 
-const AUTO_PROMPT_DELAY_MS = 2 * 60 * 1000; // 2 minutes
+const INITIAL_DELAY_MS = 2 * 60 * 1000; // 2 minutes of browsing
+const REDISPLAY_DELAY_MS = 10 * 60 * 1000; // 10 minutes after dismissal
 
 /**
- * Hook that manages a login prompt modal for unauthenticated users.
- * Shows automatically after 2 minutes of browsing, or on demand via `show()`.
- * Once dismissed it won't auto-show again during the same session.
+ * Shows a login prompt to unauthenticated users after a period of browsing.
+ * Also exposes a `show()` method to trigger it on-demand (e.g. when an action requires auth).
  */
 export function useLoginPrompt() {
   const { user } = useAuthStore();
   const [visible, setVisible] = useState(false);
-  const autoDismissedRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-prompt after 2 minutes for unauthenticated users
-  useEffect(() => {
-    if (user || autoDismissedRef.current) return;
-
-    const timer = setTimeout(() => {
+  const schedulePrompt = useCallback((delay: number) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      // Re-check auth at fire time — user may have logged in since scheduling
       if (!useAuthStore.getState().user) {
         setVisible(true);
       }
-    }, AUTO_PROMPT_DELAY_MS);
+    }, delay);
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [user]);
-
-  // Hide modal when user logs in
   useEffect(() => {
     if (user) {
+      // Logged in — cancel pending timer and hide modal
+      if (timerRef.current) clearTimeout(timerRef.current);
       setVisible(false);
+      return;
     }
-  }, [user]);
+    // Start the initial browsing timer
+    schedulePrompt(INITIAL_DELAY_MS);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [user, schedulePrompt]);
 
   const dismiss = useCallback(() => {
     setVisible(false);
-    autoDismissedRef.current = true;
-  }, []);
+    schedulePrompt(REDISPLAY_DELAY_MS);
+  }, [schedulePrompt]);
 
   const show = useCallback(() => {
     if (!useAuthStore.getState().user) {

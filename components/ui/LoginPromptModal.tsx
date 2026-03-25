@@ -1,15 +1,17 @@
 import React from 'react';
 import {
+  Modal,
   View,
   Text,
-  StyleSheet,
-  Modal,
   Pressable,
+  StyleSheet,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, Magenta, BorderRadius } from '@/constants/theme';
+import { Colors, Magenta, Charcoal, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { GlowingLogo } from '@/components/ui/glowing-logo';
 
 interface LoginPromptModalProps {
   visible: boolean;
@@ -36,51 +38,48 @@ export function LoginPromptModal({ visible, onDismiss }: LoginPromptModalProps) 
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={onDismiss}
     >
       <Pressable style={styles.backdrop} onPress={onDismiss}>
-        <Pressable style={[styles.card, { backgroundColor: colors.card }]}>
-          {/* Close button */}
+        <Pressable
+          style={[styles.card, { backgroundColor: colorScheme === 'dark' ? Charcoal[700] : '#FFFFFF' }]}
+          onPress={() => {}}
+        >
+          {/* Dismiss button */}
           <Pressable style={styles.closeButton} onPress={onDismiss} hitSlop={8}>
-            <Ionicons name="close" size={22} color={colors.textMuted} />
+            <Ionicons name="close" size={20} color={colors.textMuted} />
           </Pressable>
 
-          <Ionicons
-            name="heart-circle"
-            size={56}
-            color={Magenta[500]}
-            style={styles.icon}
-          />
-
-          <Text style={[styles.title, { color: colors.text }]}>
-            Join Crowdia
+          {/* Logo + heading */}
+          <View style={styles.logoRow}>
+            <GlowingLogo size={36} />
+          </View>
+          <Text style={[styles.title, { color: colors.text }]}>Join Crowdia</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Save events, follow organizers, and stay in the loop on what's happening in Palermo.
           </Text>
 
-          <Text style={[styles.body, { color: colors.textSecondary }]}>
-            Sign in to save events, follow organizers, and get personalized recommendations.
-          </Text>
-
+          {/* Actions */}
+          <Pressable
+            style={({ pressed }) => [styles.loginButton, pressed && { opacity: 0.85 }]}
+            onPress={handleLogin}
+          >
+            <Text style={styles.loginButtonText}>Log in</Text>
+          </Pressable>
           <Pressable
             style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.buttonPressed,
+              styles.signupButton,
+              { borderColor: Magenta[500] },
+              pressed && { opacity: 0.85 },
             ]}
             onPress={handleSignUp}
           >
-            <Text style={styles.primaryButtonText}>Create Account</Text>
+            <Text style={[styles.signupButtonText, { color: Magenta[500] }]}>Sign up free</Text>
           </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              { borderColor: colors.cardBorder },
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleLogin}
-          >
-            <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
-              Sign In
-            </Text>
+          <Pressable onPress={onDismiss} style={styles.laterButton}>
+            <Text style={[styles.laterText, { color: colors.textMuted }]}>Maybe later</Text>
           </Pressable>
         </Pressable>
       </Pressable>
@@ -91,64 +90,77 @@ export function LoginPromptModal({ visible, onDismiss }: LoginPromptModalProps) 
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.lg,
+    padding: Spacing.xxxl,
   },
   card: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 380,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
+    padding: Spacing.xxxl,
     alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+      },
+      android: { elevation: 12 },
+    }),
   },
   closeButton: {
     position: 'absolute',
     top: Spacing.md,
     right: Spacing.md,
-    padding: 4,
+    padding: Spacing.xs,
   },
-  icon: {
+  logoRow: {
     marginBottom: Spacing.md,
   },
   title: {
-    fontSize: Typography.xl,
+    fontSize: Typography.xxl,
     fontWeight: '700',
     marginBottom: Spacing.sm,
     textAlign: 'center',
   },
-  body: {
+  subtitle: {
     fontSize: Typography.sm,
-    lineHeight: Typography.sm * 1.5,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
+    lineHeight: Typography.sm * 1.5,
+    marginBottom: Spacing.xxxl,
   },
-  primaryButton: {
+  loginButton: {
     width: '100%',
     backgroundColor: Magenta[500],
-    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  primaryButtonText: {
+  loginButtonText: {
     color: '#FFFFFF',
     fontSize: Typography.base,
     fontWeight: '600',
   },
-  secondaryButton: {
+  signupButton: {
     width: '100%',
-    paddingVertical: Spacing.md,
+    borderWidth: 1.5,
     borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
     alignItems: 'center',
-    borderWidth: 1,
+    marginBottom: Spacing.md,
   },
-  secondaryButtonText: {
+  signupButtonText: {
     fontSize: Typography.base,
     fontWeight: '600',
   },
-  buttonPressed: {
-    opacity: 0.7,
+  laterButton: {
+    paddingVertical: Spacing.sm,
+  },
+  laterText: {
+    fontSize: Typography.sm,
   },
 });

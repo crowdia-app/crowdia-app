@@ -15,12 +15,12 @@ export async function fetchVenueById(id: string): Promise<Location | null> {
   return data;
 }
 
-export async function fetchVenueEvents(venueId: string, limit = 20): Promise<EventWithStats[]> {
+export async function fetchVenueEvents(locationId: string, limit = 20): Promise<EventWithStats[]> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('events_with_stats')
     .select('*')
-    .eq('location_id', venueId)
+    .eq('location_id', locationId)
     .eq('is_published', true)
     .gte('event_start_time', now)
     .order('event_start_time', { ascending: true })
