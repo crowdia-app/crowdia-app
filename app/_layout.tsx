@@ -127,6 +127,9 @@ export default function RootLayout() {
           <Stack.Screen name="auth/reset-password" />
           <Stack.Screen name="leaderboard" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="organizer/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="venue/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="user/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="voices/[eventId]" options={{ animation: 'slide_from_right' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
