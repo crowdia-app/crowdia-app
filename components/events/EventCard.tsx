@@ -128,6 +128,16 @@ export const EventCard = memo(function EventCard({ event, onPress, onRequireLogi
           {event.title}
         </Text>
 
+        {/* Multi-date series indicator */}
+        {(event.series_count ?? 0) > 0 ? (
+          <View style={styles.seriesBadge}>
+            <Ionicons name="calendar-outline" size={10} color={colors.textSecondary} />
+            <Text style={[styles.seriesText, { color: colors.textSecondary }]}>
+              {event.series_count} more date{event.series_count === 1 ? '' : 's'}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Location and Category Row */}
         <View style={styles.metaRow}>
           <View style={styles.locationRow}>
@@ -239,5 +249,13 @@ const styles = StyleSheet.create({
   location: {
     fontSize: Typography.xs,
     flex: 1,
+  },
+  seriesBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  seriesText: {
+    fontSize: Typography.xs,
   },
 });

@@ -268,3 +268,41 @@ export async function fetchEventById(eventId: string): Promise<EventWithStats | 
 
   return data as EventWithStats;
 }
+
+/**
+ * Fetches other dates for the same event series.
+ * Matches by exact title + same organizer (if set) or same venue (fallback).
+ * Only returns upcoming events, sorted by date ascending.
+ */
+export async function fetchRelatedEvents(
+  title: string,
+  organizerId: string | null,
+  locationId: string | null,
+  excludeId: string,
+): Promise<EventWithStats[]> {
+  const now = new Date().toISOString();
+
+  let query = supabase
+    .from('events_with_stats')
+    .select('*')
+    .eq('is_published', true)
+    .ilike('title', title)
+    .neq('id', excludeId)
+    .gte('event_start_time', now)
+    .order('event_start_time', { ascending: true })
+    .limit(10);
+
+  if (organizerId) {
+    query = query.eq('organizer_id', organizerId);
+  } else if (locationId) {
+    query = query.eq('location_id', locationId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Error fetching related events:', error);
+    return [];
+  }
+
+  return (data as EventWithStats[]) ?? [];
+}

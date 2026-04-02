@@ -1224,6 +1224,7 @@ export type Database = {
           location_venue_type: string | null
           organizer_id: string | null
           popularity_score: number | null
+          series_count: number | null
           source: string | null
           title: string | null
           updated_at: string | null

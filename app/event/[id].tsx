@@ -20,7 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { fetchEventById } from '@/services/events';
+import { fetchEventById, fetchRelatedEvents } from '@/services/events';
 import { fetchOrganizerById } from '@/services/organizers';
 import { getVoicesByEventId, type VoiceAttendee } from '@/services/voices';
 import { trackAffiliateClick } from '@/services/affiliate';
@@ -128,6 +128,14 @@ export default function EventDetailScreen() {
     queryFn: () => getVoicesByEventId(id!),
     enabled: !!id && (event?.voice_count ?? 0) > 0,
     staleTime: 60_000,
+  });
+
+  // Fetch other dates for this event series (same title + organizer/venue)
+  const { data: relatedEvents } = useQuery({
+    queryKey: ['event-related', id, event?.title, event?.organizer_id, event?.location_id],
+    queryFn: () => fetchRelatedEvents(event!.title!, event!.organizer_id ?? null, event!.location_id ?? null, id!),
+    enabled: !!event?.title,
+    staleTime: 5 * 60_000,
   });
 
   // Check if the current user has already checked in to this event
@@ -410,6 +418,43 @@ export default function EventDetailScreen() {
               </View>
             </View>
           </View>
+
+          {/* Other dates in this series */}
+          {relatedEvents && relatedEvents.length > 0 ? (
+            <View style={[styles.infoCard, { backgroundColor: colors.card }]}>
+              <View style={styles.infoRow}>
+                <View style={[styles.infoIcon, { backgroundColor: Magenta[500] + '20' }]}>
+                  <Ionicons name="calendar" size={20} color={Magenta[500]} />
+                </View>
+                <Text style={[styles.infoLabel, { color: colors.text }]}>
+                  Other dates
+                </Text>
+              </View>
+              <View style={styles.otherDatesRow}>
+                {relatedEvents.map((rel) => {
+                  const d = formatFullDate(rel.event_start_time ?? new Date().toISOString());
+                  return (
+                    <Pressable
+                      key={rel.id}
+                      style={({ pressed }) => [
+                        styles.datePill,
+                        { backgroundColor: Magenta[500] + '15', borderColor: Magenta[500] + '40' },
+                        pressed && { opacity: 0.7 },
+                      ]}
+                      onPress={() => router.push(`/event/${rel.id}`)}
+                    >
+                      <Text style={[styles.datePillText, { color: Magenta[500] }]}>
+                        {d.weekday.slice(0, 3)} · {d.date.split(' ').slice(0, 2).join(' ')}
+                      </Text>
+                      <Text style={[styles.datePillTime, { color: colors.textSecondary }]}>
+                        {d.time}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
 
           {/* Location Info */}
           <Pressable
@@ -888,6 +933,27 @@ const styles = StyleSheet.create({
   },
   infoSubLabel: {
     fontSize: Typography.sm,
+  },
+  otherDatesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingLeft: 40 + Spacing.md, // align under label, past icon width
+  },
+  datePill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  datePillText: {
+    fontSize: Typography.sm,
+    fontWeight: '600',
+  },
+  datePillTime: {
+    fontSize: Typography.xs,
   },
   section: {
     marginTop: Spacing.lg,
