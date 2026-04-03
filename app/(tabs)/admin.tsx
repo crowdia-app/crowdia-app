@@ -40,8 +40,9 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    if (userProfile?.is_admin) loadStats();
+    else setIsLoading(false);
+  }, [userProfile?.is_admin]);
 
   // Redirect if not admin
   if (!userProfile?.is_admin) {

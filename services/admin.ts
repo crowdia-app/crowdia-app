@@ -26,6 +26,7 @@ export interface AgentStats {
 export async function fetchDashboardStats(): Promise<DashboardStats | null> {
   try {
     // Fetch counts in parallel
+    const signal = AbortSignal.timeout(10000);
     const [
       usersResult,
       eventsResult,
@@ -35,17 +36,18 @@ export async function fetchDashboardStats(): Promise<DashboardStats | null> {
       locationsResult,
       recentRunsResult,
     ] = await Promise.all([
-      supabase.from("users").select("id", { count: "exact", head: true }),
-      supabase.from("events").select("id", { count: "exact", head: true }),
-      supabase.from("events").select("id", { count: "exact", head: true }).eq("is_published", true),
-      supabase.from("organizers").select("id", { count: "exact", head: true }),
-      supabase.from("organizers").select("id", { count: "exact", head: true }).eq("is_verified", true),
-      supabase.from("locations").select("id", { count: "exact", head: true }),
+      supabase.from("users").select("id", { count: "exact", head: true }).abortSignal(signal),
+      supabase.from("events").select("id", { count: "exact", head: true }).abortSignal(signal),
+      supabase.from("events").select("id", { count: "exact", head: true }).eq("is_published", true).abortSignal(signal),
+      supabase.from("organizers").select("id", { count: "exact", head: true }).abortSignal(signal),
+      supabase.from("organizers").select("id", { count: "exact", head: true }).eq("is_verified", true).abortSignal(signal),
+      supabase.from("locations").select("id", { count: "exact", head: true }).abortSignal(signal),
       supabase
         .from("agent_runs")
         .select("*")
         .order("started_at", { ascending: false })
-        .limit(5),
+        .limit(5)
+        .abortSignal(signal),
     ]);
 
     return {

@@ -44,11 +44,12 @@ export async function fetchUserInterestedEvents(userId: string): Promise<EventWi
   const { data: events, error: eventsError } = await supabase
     .from('events_with_stats')
     .select('*')
-    .in('id', eventIds);
+    .in('id', eventIds)
+    .abortSignal(AbortSignal.timeout(10000));
 
   if (eventsError) {
     console.error('Error fetching interested events:', eventsError);
-    throw new Error(`Failed to fetch events: ${eventsError.message}`);
+    return [];
   }
 
   // Return in the same order as interests (most recently added first)
