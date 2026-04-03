@@ -22,70 +22,78 @@ export default function ResetPasswordScreen() {
   const confirmPasswordRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    // With PKCE flow, Supabase automatically handles the code exchange
-    // We listen for auth state changes to detect when the session is established
+    let resolved = false;
+
+    const resolve = (valid: boolean, errorMsg?: string) => {
+      if (resolved) return;
+      resolved = true;
+      setIsValidToken(valid);
+      if (errorMsg) setError(errorMsg);
+      setIsCheckingToken(false);
+    };
+
+    // Listen for PASSWORD_RECOVERY or SIGNED_IN — whichever fires first wins.
+    // This covers the case where the PKCE code exchange completes after we mount.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        // User clicked the recovery link and session was established
-        setIsValidToken(true);
-        setIsCheckingToken(false);
+        resolve(true);
       } else if (event === 'SIGNED_IN' && session) {
-        // Fallback: check if this is a recovery session
-        setIsValidToken(true);
-        setIsCheckingToken(false);
+        resolve(true);
       }
     });
 
-    // Also check for existing session (in case auth state change already fired before this screen mounted)
+    // Also check immediately for an existing session — covers the case where
+    // _layout.tsx already intercepted PASSWORD_RECOVERY and navigated here,
+    // meaning the session is already established before our listener registered.
     const checkExistingSession = async () => {
-      // Check immediately first — session may already exist if navigated from root layout
       const { data: { session: immediateSession } } = await supabase.auth.getSession();
       if (immediateSession) {
-        setIsValidToken(true);
-        setIsCheckingToken(false);
+        resolve(true);
         return;
       }
 
-      // Give Supabase time to process the URL and exchange the code
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Give Supabase a short window to finish the PKCE code exchange
+      // if the URL still has a code param and exchange is in-flight.
+      await new Promise(r => setTimeout(r, 1500));
+
+      if (resolved) return;
 
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        setIsValidToken(true);
-      } else {
-        // Check if there's a code in the URL that failed to exchange
-        if (Platform.OS === 'web') {
-          const urlParams = new URLSearchParams(window.location.search);
-          const code = urlParams.get('code');
-          const errorParam = urlParams.get('error');
-          const errorDescription = urlParams.get('error_description');
+        resolve(true);
+        return;
+      }
 
-          if (errorParam) {
-            setError(errorDescription || 'Invalid or expired reset link. Please request a new one.');
-          } else if (code) {
-            // Code exists but wasn't exchanged after waiting - likely invalid
-            setError('Invalid or expired reset link. Please request a new one.');
-          } else if (!window.location.hash.includes('access_token') && !window.location.hash.includes('recovery')) {
-            // Only show error if there's no token AND no recovery indicator
-            // This prevents false positives when user navigates directly to the page
-            setError('No recovery token found. Please use the link from your email.');
-          }
+      // No session after waiting — determine the right error message.
+      if (Platform.OS === 'web') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const errorParam = urlParams.get('error');
+        const errorDescription = urlParams.get('error_description');
+        const code = urlParams.get('code');
+
+        if (errorParam) {
+          resolve(false, errorDescription || 'Invalid or expired reset link. Please request a new one.');
+        } else if (code) {
+          resolve(false, 'Invalid or expired reset link. Please request a new one.');
         } else {
-          // For native apps, check params
-          const code = params.code as string;
-          const errorParam = params.error as string;
-          const errorDescription = params.error_description as string;
+          // No code in URL — either the code was already consumed (normal) or
+          // user navigated directly. Don't show an error in the latter case;
+          // just show the expired-link screen without an additional message.
+          resolve(false);
+        }
+      } else {
+        const code = params.code as string;
+        const errorParam = params.error as string;
+        const errorDescription = params.error_description as string;
 
-          if (errorParam) {
-            setError(errorDescription || 'Invalid or expired reset link. Please request a new one.');
-          } else if (code) {
-            // Code exists but session wasn't created - likely invalid
-            setError('Invalid or expired reset link. Please request a new one.');
-          }
-          // For native, don't show error if no code - user might be testing
+        if (errorParam) {
+          resolve(false, errorDescription || 'Invalid or expired reset link. Please request a new one.');
+        } else if (code) {
+          resolve(false, 'Invalid or expired reset link. Please request a new one.');
+        } else {
+          resolve(false);
         }
       }
-      setIsCheckingToken(false);
     };
 
     checkExistingSession();

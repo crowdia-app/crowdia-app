@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -24,6 +24,7 @@ export default function RootLayout() {
   const { initialize: initInterests, reset: resetInterests } = useInterestsStore();
   const colors = Colors[colorScheme ?? 'dark'];
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     initialize();
@@ -94,7 +95,13 @@ export default function RootLayout() {
     }
   }, [user, initInterests, resetInterests]);
 
-  if (isLoading) {
+  // Auth screens (login, signup, password reset) must never be blocked by the
+  // loading spinner -- the reset-password flow in particular relies on being able
+  // to render and mount its own onAuthStateChange listener while initialize() is
+  // still running.
+  const isAuthRoute = pathname?.startsWith('/auth/');
+
+  if (isLoading && !isAuthRoute) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" />
