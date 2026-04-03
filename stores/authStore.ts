@@ -52,7 +52,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await AuthService.getCurrentUser();
       if (user) {
-        // Timeout profile fetches so a stale/recovery session never blocks the app
         const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
           Promise.race([p, new Promise<null>(r => setTimeout(() => r(null), ms))]);
 
@@ -61,17 +60,25 @@ export const useAuthStore = create<AuthState>((set) => ({
           withTimeout(AuthService.getOrganizerProfile(user.id), 8000),
         ]);
 
+        // If profile fetch timed out or returned null for an existing user,
+        // the session is likely stale (e.g. leftover recovery session).
+        // Sign out to clear it so the user isn't stuck.
+        if (!userProfile) {
+          console.warn('Auth init: profile fetch failed/timed out, clearing stale session');
+          await AuthService.signOut().catch(() => {});
+          set({ user: null, userProfile: null, organizerProfile: null, isLoading: false });
+          return;
+        }
+
         // Check if email is confirmed and points haven't been awarded yet
         if (
           user.email_confirmed_at &&
           userProfile &&
           !userProfile.email_confirmed_points_awarded
         ) {
-          // Award 50 points for email confirmation
-          userProfile = await AuthService.awardEmailConfirmationPoints(user.id);
-          // Award referral points to the referrer if this user was referred
+          userProfile = await withTimeout(AuthService.awardEmailConfirmationPoints(user.id), 5000) ?? userProfile;
           if (userProfile?.referred_by) {
-            await AuthService.awardReferralPoints(user.id);
+            await withTimeout(AuthService.awardReferralPoints(user.id), 5000);
           }
         }
 
@@ -85,7 +92,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ isLoading: false });
       }
     } catch (error) {
-      // Init errors should never block the login page
       console.error('Auth init error:', error);
       set({ isLoading: false });
     }
