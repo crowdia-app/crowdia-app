@@ -42,19 +42,41 @@ export default function ResetPasswordScreen() {
       }
     });
 
-    // Also check immediately for an existing session — covers the case where
-    // _layout.tsx already intercepted PASSWORD_RECOVERY and navigated here,
-    // meaning the session is already established before our listener registered.
     const checkExistingSession = async () => {
+      // 1. Check if there's already a session (layout may have handled the event)
       const { data: { session: immediateSession } } = await supabase.auth.getSession();
       if (immediateSession) {
         resolve(true);
         return;
       }
 
-      // Give Supabase a short window to finish the PKCE code exchange
-      // if the URL still has a code param and exchange is in-flight.
-      await new Promise(r => setTimeout(r, 1500));
+      // 2. On web, try to manually exchange the PKCE code from the URL.
+      //    detectSessionInUrl runs at createClient() time, but in Expo web
+      //    the client may initialize before the reset URL is loaded.
+      if (Platform.OS === 'web') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const errorParam = urlParams.get('error');
+        const errorDescription = urlParams.get('error_description');
+
+        if (errorParam) {
+          resolve(false, errorDescription || 'Invalid or expired reset link. Please request a new one.');
+          return;
+        }
+
+        if (code) {
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (data?.session) {
+            resolve(true);
+            return;
+          }
+          resolve(false, exchangeError?.message || 'Invalid or expired reset link. Please request a new one.');
+          return;
+        }
+      }
+
+      // 3. No code in URL -- wait briefly for the auth state listener to fire
+      await new Promise(r => setTimeout(r, 2000));
 
       if (resolved) return;
 
@@ -64,36 +86,7 @@ export default function ResetPasswordScreen() {
         return;
       }
 
-      // No session after waiting — determine the right error message.
-      if (Platform.OS === 'web') {
-        const urlParams = new URLSearchParams(window.location.search);
-        const errorParam = urlParams.get('error');
-        const errorDescription = urlParams.get('error_description');
-        const code = urlParams.get('code');
-
-        if (errorParam) {
-          resolve(false, errorDescription || 'Invalid or expired reset link. Please request a new one.');
-        } else if (code) {
-          resolve(false, 'Invalid or expired reset link. Please request a new one.');
-        } else {
-          // No code in URL — either the code was already consumed (normal) or
-          // user navigated directly. Don't show an error in the latter case;
-          // just show the expired-link screen without an additional message.
-          resolve(false);
-        }
-      } else {
-        const code = params.code as string;
-        const errorParam = params.error as string;
-        const errorDescription = params.error_description as string;
-
-        if (errorParam) {
-          resolve(false, errorDescription || 'Invalid or expired reset link. Please request a new one.');
-        } else if (code) {
-          resolve(false, 'Invalid or expired reset link. Please request a new one.');
-        } else {
-          resolve(false);
-        }
-      }
+      resolve(false);
     };
 
     checkExistingSession();
