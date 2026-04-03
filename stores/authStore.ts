@@ -52,9 +52,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await AuthService.getCurrentUser();
       if (user) {
+        // Timeout profile fetches so a stale/recovery session never blocks the app
+        const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+          Promise.race([p, new Promise<null>(r => setTimeout(() => r(null), ms))]);
+
         let [userProfile, organizerProfile] = await Promise.all([
-          AuthService.getUserProfile(user.id),
-          AuthService.getOrganizerProfile(user.id),
+          withTimeout(AuthService.getUserProfile(user.id), 8000),
+          withTimeout(AuthService.getOrganizerProfile(user.id), 8000),
         ]);
 
         // Check if email is confirmed and points haven't been awarded yet
