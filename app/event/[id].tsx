@@ -134,7 +134,7 @@ export default function EventDetailScreen() {
   const { data: relatedEvents } = useQuery({
     queryKey: ['event-related', id, event?.title, event?.organizer_id, event?.location_id],
     queryFn: () => fetchRelatedEvents(event!.title!, event!.organizer_id ?? null, event!.location_id ?? null, id!),
-    enabled: !!event?.title,
+    enabled: !!event?.title && (event?.series_count ?? 0) > 0,
     staleTime: 5 * 60_000,
   });
 
