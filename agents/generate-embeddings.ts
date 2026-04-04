@@ -2,28 +2,16 @@
  * Generate embeddings for all published events and store them in the database.
  * Uses OpenRouter API (openai/text-embedding-3-small, 1536 dims).
  *
- * Run: npx tsx agents/generate-embeddings.ts
+ * Run standalone: npx tsx agents/generate-embeddings.ts
+ * Or import generateMissingEmbeddings() to call from other agents.
  *
- * Safe to re-run: only processes events with missing or outdated embeddings.
+ * Safe to re-run: only processes events with missing embeddings.
  */
 
 import "dotenv/config";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { config, validateConfig } from "./config";
-
-validateConfig();
-
-const openrouter = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: config.openRouterKey,
-  defaultHeaders: {
-    "HTTP-Referer": "https://crowdia.app",
-    "X-Title": "Crowdia Embedding Generator",
-  },
-});
-
-const supabase = createClient(config.supabaseUrl, config.supabaseServiceKey);
 
 const EMBEDDING_MODEL = "openai/text-embedding-3-small";
 const BATCH_SIZE = 10; // Embed 10 events at a time (OpenRouter allows batching)
@@ -59,10 +47,25 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function main() {
+/**
+ * Generate embeddings for all published events that don't have one yet.
+ * Returns counts of processed and failed events.
+ */
+export async function generateMissingEmbeddings(): Promise<{ processed: number; failed: number; skipped: number }> {
+  const openrouter = new OpenAI({
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKey: config.openRouterKey,
+    defaultHeaders: {
+      "HTTP-Referer": "https://crowdia.app",
+      "X-Title": "Crowdia Embedding Generator",
+    },
+  });
+
+  const supabase = createClient(config.supabaseUrl, config.supabaseServiceKey);
+
   console.log("🔍 Fetching events without embeddings...");
 
-  // Paginate through all published events (Supabase default limit is 1000)
+  // Paginate through all published events
   const allEvents: any[] = [];
   const PAGE_SIZE = 1000;
   let from = 0;
@@ -76,21 +79,20 @@ async function main() {
 
     if (error) {
       console.error("Failed to fetch events:", error);
-      process.exit(1);
+      throw error;
     }
     if (!page || page.length === 0) break;
     allEvents.push(...page);
     if (page.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
-  const events = allEvents;
 
-  if (events.length === 0) {
+  if (allEvents.length === 0) {
     console.log("No events found.");
-    return;
+    return { processed: 0, failed: 0, skipped: 0 };
   }
 
-  // Paginate through all events with embeddings
+  // Paginate through all events that already have embeddings
   const allEmbeddedIds: string[] = [];
   from = 0;
   while (true) {
@@ -107,15 +109,15 @@ async function main() {
   }
 
   const embeddedIds = new Set(allEmbeddedIds);
-  const toEmbed = events.filter((e: { id: string }) => !embeddedIds.has(e.id));
+  const toEmbed = allEvents.filter((e: { id: string }) => !embeddedIds.has(e.id));
 
   console.log(
-    `📊 Total events: ${events.length}, already embedded: ${embeddedIds.size}, to embed: ${toEmbed.length}`
+    `📊 Total events: ${allEvents.length}, already embedded: ${embeddedIds.size}, to embed: ${toEmbed.length}`
   );
 
   if (toEmbed.length === 0) {
     console.log("✅ All events already have embeddings!");
-    return;
+    return { processed: 0, failed: 0, skipped: allEvents.length };
   }
 
   let processed = 0;
@@ -173,9 +175,15 @@ async function main() {
   }
 
   console.log(`\n✅ Done! Processed: ${processed}, Failed: ${failed}`);
+  return { processed, failed, skipped: embeddedIds.size };
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+// Standalone entrypoint — only runs when executed directly, not when imported
+const isMain = process.argv[1]?.endsWith("generate-embeddings.ts");
+if (isMain) {
+  validateConfig();
+  generateMissingEmbeddings().catch((err) => {
+    console.error("Fatal error:", err);
+    process.exit(1);
+  });
+}

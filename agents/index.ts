@@ -45,6 +45,7 @@ async function main() {
   const { validateConfig } = await import("./config");
   const { runExtractionAgent } = await import("./extraction");
   const { runDiscoveryAgent } = await import("./discovery");
+  const { generateMissingEmbeddings } = await import("./generate-embeddings");
 
   // Parse command line arguments
   const args = process.argv.slice(2);
@@ -85,6 +86,12 @@ async function main() {
     if (agentType === "extraction" || agentType === "both") {
       console.log("\n--- Running Extraction Agent ---\n");
       await runExtractionAgent({ maxSourcesPerRun: maxSources });
+    }
+
+    // After extraction, generate embeddings for any new events (enables RAG search)
+    if (agentType === "extraction" || agentType === "both") {
+      console.log("\n--- Generating missing embeddings ---\n");
+      await generateMissingEmbeddings();
     }
 
     console.log("\n" + "=".repeat(50));
