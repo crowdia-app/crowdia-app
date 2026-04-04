@@ -5,6 +5,7 @@ import { createAuthStyles } from '@/styles/auth.styles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -32,30 +33,33 @@ export default function ResetPasswordScreen() {
       setIsCheckingToken(false);
     };
 
-    // Listen for PASSWORD_RECOVERY or SIGNED_IN — whichever fires first wins.
-    // This covers the case where the PKCE code exchange completes after we mount.
+    // Listen for PASSWORD_RECOVERY, SIGNED_IN, or INITIAL_SESSION — whichever fires first wins.
+    // INITIAL_SESSION covers the race condition where detectSessionInUrl (which auto-exchanges
+    // the PKCE code at client creation time) completes before this listener is registered.
+    // We must NOT call exchangeCodeForSession manually because detectSessionInUrl: true already
+    // handles the exchange — calling it twice causes "auth code already used" → false negative.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         resolve(true);
       } else if (event === 'SIGNED_IN' && session) {
         resolve(true);
+      } else if (event === 'INITIAL_SESSION' && session) {
+        // detectSessionInUrl completed before we registered — session already active
+        resolve(true);
       }
     });
 
     const checkExistingSession = async () => {
-      // 1. Check if there's already a session (layout may have handled the event)
+      // 1. Fast path: detectSessionInUrl may have already completed the exchange
       const { data: { session: immediateSession } } = await supabase.auth.getSession();
       if (immediateSession) {
         resolve(true);
         return;
       }
 
-      // 2. On web, try to manually exchange the PKCE code from the URL.
-      //    detectSessionInUrl runs at createClient() time, but in Expo web
-      //    the client may initialize before the reset URL is loaded.
+      // 2. On web, check for Supabase error params in the URL (e.g. expired link)
       if (Platform.OS === 'web') {
         const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
         const errorParam = urlParams.get('error');
         const errorDescription = urlParams.get('error_description');
 
@@ -63,20 +67,12 @@ export default function ResetPasswordScreen() {
           resolve(false, errorDescription || 'Invalid or expired reset link. Please request a new one.');
           return;
         }
-
-        if (code) {
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (data?.session) {
-            resolve(true);
-            return;
-          }
-          resolve(false, exchangeError?.message || 'Invalid or expired reset link. Please request a new one.');
-          return;
-        }
       }
 
-      // 3. No code in URL -- wait briefly for the auth state listener to fire
-      await new Promise(r => setTimeout(r, 2000));
+      // 3. Wait for detectSessionInUrl to finish the async PKCE exchange.
+      //    The onAuthStateChange listener above will resolve us via PASSWORD_RECOVERY
+      //    or INITIAL_SESSION once the exchange completes.
+      await new Promise(r => setTimeout(r, 5000));
 
       if (resolved) return;
 
@@ -86,7 +82,7 @@ export default function ResetPasswordScreen() {
         return;
       }
 
-      resolve(false);
+      resolve(false, 'Invalid or expired reset link. Please request a new one.');
     };
 
     checkExistingSession();
@@ -126,8 +122,8 @@ export default function ResetPasswordScreen() {
       } else {
         setSuccess(true);
         setIsLoading(false);
-        // Sign out so user can log in with new password
-        await supabase.auth.signOut();
+        // Sign out and clear the store so the user can log in with their new password
+        await useAuthStore.getState().logout().catch(() => {});
       }
     } catch {
       setError('An unexpected error occurred. Please try again.');

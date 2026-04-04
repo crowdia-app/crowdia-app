@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import 'react-native-reanimated';
 
@@ -25,6 +25,7 @@ export default function RootLayout() {
   const colors = Colors[colorScheme ?? 'dark'];
   const router = useRouter();
   const pathname = usePathname();
+  const pendingPasswordRecovery = useRef(false);
 
   useEffect(() => {
     initialize();
@@ -37,8 +38,12 @@ export default function RootLayout() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        // User clicked a password reset link — navigate to the reset screen
+        // User clicked a password reset link — navigate to the reset screen.
+        // Use a ref so we can retry navigation after the loading spinner clears
+        // (when the user lands at the root URL, isLoading may still be true and
+        // the Stack may not be ready for navigation yet).
         isPasswordRecovery = true;
+        pendingPasswordRecovery.current = true;
         router.replace('/auth/reset-password');
         return;
       }
@@ -85,6 +90,15 @@ export default function RootLayout() {
 
     return () => subscription.unsubscribe();
   }, [router]);
+
+  // If PASSWORD_RECOVERY fired while the app was still loading (loading spinner was shown,
+  // Stack not yet mounted), retry the navigation now that loading is done.
+  useEffect(() => {
+    if (!isLoading && pendingPasswordRecovery.current) {
+      pendingPasswordRecovery.current = false;
+      router.replace('/auth/reset-password');
+    }
+  }, [isLoading, router]);
 
   // Initialize interests when user logs in, reset when they log out
   useEffect(() => {
