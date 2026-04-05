@@ -65,7 +65,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         // Sign out to clear it so the user isn't stuck.
         if (!userProfile) {
           console.warn('Auth init: profile fetch failed/timed out, clearing stale session');
-          await AuthService.signOut().catch(() => {});
+          await AuthService.logout().catch(() => {});
           set({ user: null, userProfile: null, organizerProfile: null, isLoading: false });
           return;
         }
