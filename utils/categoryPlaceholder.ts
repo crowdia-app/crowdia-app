@@ -6,7 +6,7 @@ interface CategoryPlaceholder {
 }
 
 const CATEGORY_PLACEHOLDERS: Record<string, CategoryPlaceholder> = {
-  'nightlife':   { colors: ['#0d0033', '#2d006b', '#5500cc'], icon: 'moon' },
+  'nightlife':   { colors: ['#150030', '#8b0050', '#ff1090'], icon: 'disc' },
   'concert':     { colors: ['#1a003a', '#5200a3', '#8000ff'], icon: 'musical-notes' },
   'music':       { colors: ['#1a003a', '#5200a3', '#8000ff'], icon: 'musical-notes' },
   'party':       { colors: ['#33001a', '#800033', '#cc0044'], icon: 'sparkles' },
