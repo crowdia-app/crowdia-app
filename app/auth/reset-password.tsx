@@ -6,12 +6,14 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const styles = createAuthStyles(colorScheme === 'dark');
+  const t = useTranslation();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -69,9 +71,25 @@ export default function ResetPasswordScreen() {
         }
       }
 
-      // 3. Wait for detectSessionInUrl to finish the async PKCE exchange.
-      //    The onAuthStateChange listener above will resolve us via PASSWORD_RECOVERY
-      //    or INITIAL_SESSION once the exchange completes.
+      // 3. On native, detectSessionInUrl uses Linking.getInitialURL() which only works on cold
+      //    start. If the app was already running when the deep link arrived, the code is only
+      //    available via the URL params — exchange it manually here.
+      if (Platform.OS !== 'web' && params.code) {
+        try {
+          await supabase.auth.exchangeCodeForSession(params.code as string);
+        } catch {
+          // Ignore — may already be exchanged by detectSessionInUrl on cold start.
+          // If it failed for a real reason, getSession() below will return null and
+          // we'll show the "link expired" error.
+        }
+        const { data: { session: afterExchange } } = await supabase.auth.getSession();
+        if (afterExchange) {
+          resolve(true);
+          return;
+        }
+      }
+
+      // 4. Wait for detectSessionInUrl to finish the async PKCE exchange on web.
       await new Promise(r => setTimeout(r, 5000));
 
       if (resolved) return;
@@ -94,17 +112,17 @@ export default function ResetPasswordScreen() {
 
   const handleResetPassword = async () => {
     if (!password) {
-      setError('Please enter a new password');
+      setError(t.auth.resetPassword.enterPasswordFirst);
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(t.auth.resetPassword.passwordTooShort);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t.auth.resetPassword.passwordsDoNotMatch);
       return;
     }
 
@@ -126,7 +144,7 @@ export default function ResetPasswordScreen() {
         await useAuthStore.getState().logout().catch(() => {});
       }
     } catch {
-      setError('An unexpected error occurred. Please try again.');
+      setError(t.common.unexpectedError);
       setIsLoading(false);
     }
   };
@@ -136,13 +154,13 @@ export default function ResetPasswordScreen() {
       <>
         <Stack.Screen
           options={{
-            title: 'Reset Password',
-            headerBackTitle: 'Back',
+            title: t.auth.resetPassword.title,
+            headerBackTitle: t.common.back,
           }}
         />
         <View style={styles.container}>
           <ActivityIndicator size="large" color="#8B5CF6" />
-          <Text style={[styles.subtitle, { marginTop: 16 }]}>Verifying reset link...</Text>
+          <Text style={[styles.subtitle, { marginTop: 16 }]}>{t.auth.resetPassword.verifying}</Text>
         </View>
       </>
     );
@@ -153,31 +171,31 @@ export default function ResetPasswordScreen() {
       <>
         <Stack.Screen
           options={{
-            title: 'Reset Password',
-            headerBackTitle: 'Back',
+            title: t.auth.resetPassword.title,
+            headerBackTitle: t.common.back,
           }}
         />
         <View style={styles.container}>
           <View style={styles.header}>
             <GlowingLogo size={80} />
-            <Text style={styles.title}>Link Expired</Text>
-            <Text style={styles.subtitle}>This reset link is no longer valid</Text>
+            <Text style={styles.title}>{t.auth.resetPassword.linkExpired}</Text>
+            <Text style={styles.subtitle}>{t.auth.resetPassword.linkExpiredSubtitle}</Text>
           </View>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <TouchableOpacity
             style={styles.button}
             onPress={() => router.push('/auth/forgot-password')}
           >
-            <Text style={styles.buttonText}>Request New Link</Text>
+            <Text style={styles.buttonText}>{t.auth.resetPassword.requestNewLink}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => router.push('/auth/login')}
           >
-            <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
+            <Text style={styles.secondaryButtonText}>{t.auth.forgotPassword.backToSignIn}</Text>
           </TouchableOpacity>
         </View>
       </>
@@ -189,26 +207,26 @@ export default function ResetPasswordScreen() {
       <>
         <Stack.Screen
           options={{
-            title: 'Password Reset',
-            headerBackTitle: 'Back',
+            title: t.auth.resetPassword.title,
+            headerBackTitle: t.common.back,
           }}
         />
         <View style={styles.container}>
           <View style={styles.header}>
             <GlowingLogo size={80} />
-            <Text style={styles.title}>Password Updated</Text>
-            <Text style={styles.subtitle}>Your password has been successfully reset</Text>
+            <Text style={styles.title}>{t.auth.resetPassword.successTitle}</Text>
+            <Text style={styles.subtitle}>{t.auth.resetPassword.successSubtitle}</Text>
           </View>
 
           <Text style={styles.successText}>
-            You can now sign in with your new password.
+            {t.auth.resetPassword.successBody}
           </Text>
 
           <TouchableOpacity
             style={styles.button}
             onPress={() => router.replace('/auth/login')}
           >
-            <Text style={styles.buttonText}>Sign In</Text>
+            <Text style={styles.buttonText}>{t.auth.resetPassword.signInButton}</Text>
           </TouchableOpacity>
         </View>
       </>
@@ -219,8 +237,8 @@ export default function ResetPasswordScreen() {
     <>
       <Stack.Screen
         options={{
-          title: 'Reset Password',
-          headerBackTitle: 'Back',
+          title: t.auth.resetPassword.title,
+          headerBackTitle: t.common.back,
         }}
       />
       <KeyboardAvoidingView
@@ -229,17 +247,17 @@ export default function ResetPasswordScreen() {
       >
         <View style={styles.header}>
           <GlowingLogo size={80} />
-          <Text style={styles.title}>Create New Password</Text>
-          <Text style={styles.subtitle}>Enter your new password below</Text>
+          <Text style={styles.title}>{t.auth.resetPassword.title}</Text>
+          <Text style={styles.subtitle}>{t.auth.resetPassword.subtitle}</Text>
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>New Password</Text>
+          <Text style={styles.inputLabel}>{t.auth.resetPassword.newPasswordLabel}</Text>
           <TextInput
             style={styles.input}
-            placeholder="••••••••"
+            placeholder={t.auth.passwordPlaceholder}
             placeholderTextColor="#999"
             value={password}
             onChangeText={setPassword}
@@ -252,11 +270,11 @@ export default function ResetPasswordScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Confirm Password</Text>
+          <Text style={styles.inputLabel}>{t.auth.resetPassword.confirmPasswordLabel}</Text>
           <TextInput
             ref={confirmPasswordRef}
             style={styles.input}
-            placeholder="••••••••"
+            placeholder={t.auth.passwordPlaceholder}
             placeholderTextColor="#999"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -275,7 +293,7 @@ export default function ResetPasswordScreen() {
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Reset Password</Text>
+            <Text style={styles.buttonText}>{t.auth.resetPassword.resetButton}</Text>
           )}
         </TouchableOpacity>
 
@@ -283,7 +301,7 @@ export default function ResetPasswordScreen() {
           style={styles.secondaryButton}
           onPress={() => router.push('/auth/login')}
         >
-          <Text style={styles.secondaryButtonText}>Cancel</Text>
+          <Text style={styles.secondaryButtonText}>{t.common.cancel}</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </>

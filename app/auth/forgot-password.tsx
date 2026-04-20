@@ -5,11 +5,13 @@ import { createAuthStyles } from '@/styles/auth.styles';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { supabase } from '@/lib/supabase';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const styles = createAuthStyles(colorScheme === 'dark');
+  const t = useTranslation();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,14 +19,14 @@ export default function ForgotPasswordScreen() {
 
   const handleResetPassword = async () => {
     if (!email) {
-      setError('Please enter your email');
+      setError(t.auth.forgotPassword.emailRequired);
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
+      setError(t.auth.forgotPassword.invalidEmail);
       return;
     }
 
@@ -32,10 +34,13 @@ export default function ForgotPasswordScreen() {
     setIsLoading(true);
 
     try {
-      // Use web URL for redirect - works for both web and native (via universal links)
+      // Web: use origin so it works on any hostname (staging, prod).
+      // Native: use the custom URL scheme so the deep link opens the native app directly,
+      // keeping the PKCE code_verifier in SecureStore (same process) for a successful exchange.
+      // NOTE: crowdiaapp://auth/reset-password must be in the Supabase allowed redirect URLs.
       const redirectUrl = Platform.OS === 'web'
         ? `${window.location.origin}/auth/reset-password`
-        : 'https://app.crowdia.ai/auth/reset-password';
+        : 'crowdiaapp://auth/reset-password';
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
@@ -48,8 +53,8 @@ export default function ForgotPasswordScreen() {
         setSuccess(true);
         setIsLoading(false);
       }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+    } catch {
+      setError(t.common.unexpectedError);
       setIsLoading(false);
     }
   };
@@ -59,34 +64,34 @@ export default function ForgotPasswordScreen() {
       <>
         <Stack.Screen
           options={{
-            title: 'Check Your Email',
-            headerBackTitle: 'Back',
+            title: t.auth.forgotPassword.checkEmail,
+            headerBackTitle: t.common.back,
           }}
         />
         <View style={styles.container}>
           <View style={styles.header}>
             <GlowingLogo size={80} />
-            <Text style={styles.title}>Check Your Email</Text>
-            <Text style={styles.subtitle}>We've sent you a password reset link</Text>
+            <Text style={styles.title}>{t.auth.forgotPassword.checkEmail}</Text>
+            <Text style={styles.subtitle}>{t.auth.forgotPassword.checkEmailSubtitle}</Text>
           </View>
 
           <Text style={styles.successText}>
-            If an account exists with {email}, you will receive an email with instructions to reset your password.
+            {t.auth.forgotPassword.checkEmailBody(email)}
           </Text>
 
           <Text style={styles.helpText}>
-            Please check your inbox and spam folder. The link will expire in 1 hour.
+            {t.auth.forgotPassword.checkEmailHelp}
           </Text>
 
           <TouchableOpacity
             style={styles.button}
             onPress={() => router.push('/auth/login')}
           >
-            <Text style={styles.buttonText}>Back to Sign In</Text>
+            <Text style={styles.buttonText}>{t.auth.forgotPassword.backToSignIn}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setSuccess(false)}>
-            <Text style={styles.linkText}>Didn't receive the email? Try again</Text>
+            <Text style={styles.linkText}>{t.auth.forgotPassword.didNotReceive}</Text>
           </TouchableOpacity>
         </View>
       </>
@@ -97,8 +102,8 @@ export default function ForgotPasswordScreen() {
     <>
       <Stack.Screen
         options={{
-          title: 'Reset Password',
-          headerBackTitle: 'Back',
+          title: t.auth.forgotPassword.title,
+          headerBackTitle: t.common.back,
         }}
       />
       <KeyboardAvoidingView
@@ -107,17 +112,17 @@ export default function ForgotPasswordScreen() {
       >
         <View style={styles.header}>
           <GlowingLogo size={80} />
-          <Text style={styles.title}>Reset Password</Text>
-          <Text style={styles.subtitle}>Enter your email to receive a reset link</Text>
+          <Text style={styles.title}>{t.auth.forgotPassword.title}</Text>
+          <Text style={styles.subtitle}>{t.auth.forgotPassword.subtitle}</Text>
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Email</Text>
+          <Text style={styles.inputLabel}>{t.auth.emailLabel}</Text>
           <TextInput
             style={styles.input}
-            placeholder="your@email.com"
+            placeholder={t.auth.emailPlaceholder}
             placeholderTextColor="#999"
             value={email}
             onChangeText={setEmail}
@@ -137,7 +142,7 @@ export default function ForgotPasswordScreen() {
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Send Reset Link</Text>
+            <Text style={styles.buttonText}>{t.auth.forgotPassword.sendResetLink}</Text>
           )}
         </TouchableOpacity>
 
@@ -145,7 +150,7 @@ export default function ForgotPasswordScreen() {
           style={styles.secondaryButton}
           onPress={() => router.back()}
         >
-          <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
+          <Text style={styles.secondaryButtonText}>{t.auth.forgotPassword.backToSignIn}</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </>

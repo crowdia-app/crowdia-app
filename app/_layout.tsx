@@ -55,6 +55,14 @@ export default function RootLayout() {
           return;
         }
 
+        // Don't navigate away if the user is on the reset-password screen.
+        // PASSWORD_RECOVERY may have fired before this listener registered (detectSessionInUrl
+        // exchanges the PKCE code at client-init time) so the flag may never be set, yet the
+        // user is already on the right screen and the SIGNED_IN redirect would break the flow.
+        if (pathname?.includes('reset-password')) {
+          return;
+        }
+
         // Skip if an explicit sign-in flow is already handling navigation (email/password
         // login, signup, or OAuth flows on native). Those flows navigate themselves.
         // This handler covers: post-email-confirmation sign-in, and web OAuth redirects
