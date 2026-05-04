@@ -26,6 +26,7 @@ import {
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
+import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlaceholder';
 
 const EVENT_TIMEZONE = 'Europe/Rome';
 
@@ -63,6 +64,8 @@ function VoiceEventItem({
   if (!event) return null;
 
   const imageUrl = getProxiedImageUrl(event.cover_image_url);
+  const [imageError, setImageError] = React.useState(false);
+  const hasValidImage = !!imageUrl && !imageError;
 
   return (
     <Pressable
@@ -72,17 +75,18 @@ function VoiceEventItem({
       ]}
       onPress={onPress}
     >
-      {imageUrl ? (
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.eventThumb}
-          contentFit="cover"
-        />
-      ) : (
-        <View style={[styles.eventThumb, { backgroundColor: Magenta[500] + '20' }]}>
-          <Ionicons name="musical-notes-outline" size={20} color={Magenta[500]} />
-        </View>
-      )}
+      <View style={styles.eventThumb}>
+        {hasValidImage ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <CategoryImagePlaceholder categorySlug={undefined} iconSize={20} />
+        )}
+      </View>
       <View style={styles.eventItemInfo}>
         <Text style={[styles.eventItemTitle, { color: colors.text }]} numberOfLines={2}>
           {event.title}
@@ -404,8 +408,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   eventItemInfo: {
     flex: 1,

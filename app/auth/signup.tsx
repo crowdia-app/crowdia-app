@@ -9,6 +9,7 @@ import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { GoogleIcon } from '@/components/ui/google-icon';
 import { AppleIcon } from '@/components/ui/apple-icon';
 import { supabase } from '@/lib/supabase';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // On web, wrap form fields in a <form> so browsers recognize it for autofill
 function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
@@ -28,6 +29,7 @@ export default function SignupScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const styles = createAuthStyles(colorScheme === 'dark');
+  const t = useTranslation();
   const { signUp, isSigningUp, signInWithGoogle, isGoogleSigningIn, signInWithApple, isAppleSigningIn, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,17 +76,17 @@ export default function SignupScreen() {
     setValidationError(null);
 
     if (!email || !password) {
-      setValidationError('Please enter email and password');
+      setValidationError(t.auth.signup.enterEmailAndPassword);
       return;
     }
 
     if (password !== confirmPassword) {
-      setValidationError('Passwords do not match');
+      setValidationError(t.auth.signup.passwordsDoNotMatch);
       return;
     }
 
     if (password.length < 6) {
-      setValidationError('Password must be at least 6 characters');
+      setValidationError(t.auth.signup.passwordTooShort);
       return;
     }
 
@@ -110,6 +112,22 @@ export default function SignupScreen() {
 
   const displayError = validationError || error;
 
+  if (emailConfirmationPending) {
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <GlowingLogo size={80} />
+            <Text style={styles.title}>{t.auth.emailConfirmation.title}</Text>
+            <Text style={styles.subtitle}>{t.auth.emailConfirmation.subtitle}</Text>
+          </View>
+          <Text style={styles.successText}>{t.auth.emailConfirmation.body(pendingEmail)}</Text>
+        </View>
+      </>
+    );
+  }
+
   return (
     <>
       <Stack.Screen
@@ -125,19 +143,19 @@ export default function SignupScreen() {
           <View style={styles.container}>
             <View style={styles.header}>
               <GlowingLogo size={80} />
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.subtitle}>Join Crowdia today</Text>
+              <Text style={styles.title}>{t.auth.signup.title}</Text>
+              <Text style={styles.subtitle}>{t.auth.signup.subtitle}</Text>
             </View>
 
             {displayError && <Text style={styles.errorText}>{displayError}</Text>}
 
             <FormWrapper onSubmit={handleSignup}>
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Email</Text>
+                <Text style={styles.inputLabel}>{t.auth.emailLabel}</Text>
                 <TextInput
                   nativeID="email"
                   style={styles.input}
-                  placeholder="your@email.com"
+                  placeholder={t.auth.emailPlaceholder}
                   placeholderTextColor="#999"
                   value={email}
                   onChangeText={setEmail}
@@ -153,12 +171,12 @@ export default function SignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Password</Text>
+                <Text style={styles.inputLabel}>{t.auth.passwordLabel}</Text>
                 <TextInput
                   nativeID="new-password"
                   ref={passwordRef}
                   style={styles.input}
-                  placeholder="••••••••"
+                  placeholder={t.auth.passwordPlaceholder}
                   placeholderTextColor="#999"
                   value={password}
                   onChangeText={setPassword}
@@ -170,16 +188,16 @@ export default function SignupScreen() {
                   onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                   blurOnSubmit={false}
                 />
-                <Text style={styles.helpText}>Must be at least 6 characters</Text>
+                <Text style={styles.helpText}>{t.auth.signup.passwordHelp}</Text>
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Confirm Password</Text>
+                <Text style={styles.inputLabel}>{t.auth.signup.confirmPasswordLabel}</Text>
                 <TextInput
                   nativeID="confirm-password"
                   ref={confirmPasswordRef}
                   style={styles.input}
-                  placeholder="••••••••"
+                  placeholder={t.auth.passwordPlaceholder}
                   placeholderTextColor="#999"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -193,19 +211,19 @@ export default function SignupScreen() {
               </View>
 
               <Text style={styles.termsText}>
-                By creating an account you agree to our{' '}
+                {t.auth.signup.termsPrefix}
                 <Text
                   style={styles.termsLink}
                   onPress={() => router.push('/legal/terms')}
                 >
-                  Terms of Service
+                  {t.auth.signup.termsLink}
                 </Text>
-                {' '}and{' '}
+                {t.auth.signup.termsAnd}
                 <Text
                   style={styles.termsLink}
                   onPress={() => router.push('/legal/privacy')}
                 >
-                  Privacy Policy
+                  {t.auth.signup.privacyLink}
                 </Text>
               </Text>
 
@@ -221,14 +239,14 @@ export default function SignupScreen() {
                 {isSigningUp ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.buttonText}>Create Account</Text>
+                  <Text style={styles.buttonText}>{t.auth.signup.createAccountButton}</Text>
                 )}
               </Pressable>
             </FormWrapper>
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>{t.common.or}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -246,7 +264,7 @@ export default function SignupScreen() {
               ) : (
                 <>
                   <GoogleIcon size={20} />
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  <Text style={styles.googleButtonText}>{t.auth.signup.continueGoogle}</Text>
                 </>
               )}
             </Pressable>
@@ -255,7 +273,7 @@ export default function SignupScreen() {
               <>
                 <View style={styles.divider}>
                   <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or</Text>
+                  <Text style={styles.dividerText}>{t.common.or}</Text>
                   <View style={styles.dividerLine} />
                 </View>
 
@@ -273,7 +291,7 @@ export default function SignupScreen() {
                   ) : (
                     <>
                       <AppleIcon size={20} color={colorScheme === 'dark' ? '#000' : '#fff'} />
-                      <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                      <Text style={styles.appleButtonText}>{t.auth.signup.continueApple}</Text>
                     </>
                   )}
                 </Pressable>
@@ -282,7 +300,7 @@ export default function SignupScreen() {
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>{t.common.or}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -293,7 +311,7 @@ export default function SignupScreen() {
               ]}
               onPress={() => router.push('/auth/login')}
             >
-              <Text style={styles.secondaryButtonText}>Sign In to Existing Account</Text>
+              <Text style={styles.secondaryButtonText}>{t.auth.signup.signInExisting}</Text>
             </Pressable>
           </View>
         </ScrollView>

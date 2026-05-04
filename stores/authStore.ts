@@ -60,16 +60,6 @@ export const useAuthStore = create<AuthState>((set) => ({
           withTimeout(AuthService.getOrganizerProfile(user.id), 8000),
         ]);
 
-        // If profile fetch timed out or returned null for an existing user,
-        // the session is likely stale (e.g. leftover recovery session).
-        // Sign out to clear it so the user isn't stuck.
-        if (!userProfile) {
-          console.warn('Auth init: profile fetch failed/timed out, clearing stale session');
-          await AuthService.logout().catch(() => {});
-          set({ user: null, userProfile: null, organizerProfile: null, isLoading: false });
-          return;
-        }
-
         // Check if email is confirmed and points haven't been awarded yet
         if (
           user.email_confirmed_at &&

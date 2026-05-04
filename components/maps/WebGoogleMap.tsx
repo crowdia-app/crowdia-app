@@ -14,6 +14,7 @@ import { EventWithStats } from '@/types/database';
 import { Colors, Spacing, Typography, Magenta } from '@/constants/theme';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { Image } from 'expo-image';
+import { getCategoryPlaceholder } from '@/utils/categoryPlaceholder';
 
 // Dark mode map styles
 const darkMapStyles = [
@@ -487,7 +488,9 @@ interface EventInfoCardProps {
 function EventInfoCard({ event, colorScheme, onClick }: EventInfoCardProps) {
   const colors = Colors[colorScheme];
   const imageUrl = getProxiedImageUrl(event.cover_image_url);
-  const hasValidImage = !!imageUrl;
+  const [imgError, setImgError] = React.useState(false);
+  const hasValidImage = !!imageUrl && !imgError;
+  const { colors: gradientColors } = getCategoryPlaceholder(event.category_slug);
 
   // Events are always in Palermo (Europe/Rome) — display in local event time
   const formatDate = (dateString: string | null) => {
@@ -531,9 +534,16 @@ function EventInfoCard({ event, colorScheme, onClick }: EventInfoCardProps) {
               src={imageUrl}
               alt={event.title || ''}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={() => setImgError(true)}
             />
           ) : (
-            <span style={{ fontSize: 24 }}>📅</span>
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                background: `linear-gradient(135deg, ${gradientColors[0]}, ${gradientColors[1]}, ${gradientColors[2]})`,
+              }}
+            />
           )}
         </div>
 

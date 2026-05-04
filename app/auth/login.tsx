@@ -7,6 +7,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { GoogleIcon } from '@/components/ui/google-icon';
 import { AppleIcon } from '@/components/ui/apple-icon';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // On web, wrap form fields in a <form> so browsers recognize it for autofill
 function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
@@ -26,6 +27,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const styles = createAuthStyles(colorScheme === 'dark');
+  const t = useTranslation();
   const { login, isLoggingIn, signInWithGoogle, isGoogleSigningIn, signInWithApple, isAppleSigningIn, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +38,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setValidationError(null);
     if (!email || !password) {
-      setValidationError('Please fill in all fields');
+      setValidationError(t.auth.login.fillAllFields);
       return;
     }
 
@@ -103,19 +105,19 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <GlowingLogo size={80} />
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to continue</Text>
+          <Text style={styles.title}>{t.auth.login.title}</Text>
+          <Text style={styles.subtitle}>{t.auth.login.subtitle}</Text>
         </View>
 
         {displayError && <Text style={styles.errorText}>{displayError}</Text>}
 
         <FormWrapper onSubmit={handleLogin}>
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email</Text>
+            <Text style={styles.inputLabel}>{t.auth.emailLabel}</Text>
             <TextInput
               nativeID="email"
               style={styles.input}
-              placeholder="your@email.com"
+              placeholder={t.auth.emailPlaceholder}
               placeholderTextColor="#999"
               value={email}
               onChangeText={setEmail}
@@ -131,12 +133,12 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
+            <Text style={styles.inputLabel}>{t.auth.passwordLabel}</Text>
             <TextInput
               nativeID="password"
               ref={passwordRef}
               style={styles.input}
-              placeholder="••••••••"
+              placeholder={t.auth.passwordPlaceholder}
               placeholderTextColor="#999"
               value={password}
               onChangeText={setPassword}
@@ -148,7 +150,7 @@ export default function LoginScreen() {
               onSubmitEditing={handleLogin}
             />
             <Pressable onPress={() => router.push('/auth/forgot-password')}>
-              <Text style={styles.forgotPasswordLink}>Forgot password?</Text>
+              <Text style={styles.forgotPasswordLink}>{t.auth.login.forgotPassword}</Text>
             </Pressable>
           </View>
 
@@ -164,14 +166,14 @@ export default function LoginScreen() {
             {isLoggingIn ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
+              <Text style={styles.buttonText}>{t.auth.login.signInButton}</Text>
             )}
           </Pressable>
         </FormWrapper>
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
+          <Text style={styles.dividerText}>{t.common.or}</Text>
           <View style={styles.dividerLine} />
         </View>
 
@@ -189,7 +191,7 @@ export default function LoginScreen() {
           ) : (
             <>
               <GoogleIcon size={20} />
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
+              <Text style={styles.googleButtonText}>{t.auth.login.continueGoogle}</Text>
             </>
           )}
         </Pressable>
@@ -198,7 +200,7 @@ export default function LoginScreen() {
           <>
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>{t.common.or}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -216,7 +218,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <AppleIcon size={20} color={colorScheme === 'dark' ? '#000' : '#fff'} />
-                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                  <Text style={styles.appleButtonText}>{t.auth.login.continueApple}</Text>
                 </>
               )}
             </Pressable>
@@ -225,7 +227,7 @@ export default function LoginScreen() {
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
+          <Text style={styles.dividerText}>{t.common.or}</Text>
           <View style={styles.dividerLine} />
         </View>
 
@@ -236,7 +238,7 @@ export default function LoginScreen() {
           ]}
           onPress={() => router.push('/auth/signup')}
         >
-          <Text style={styles.secondaryButtonText}>Create New Account</Text>
+          <Text style={styles.secondaryButtonText}>{t.auth.login.createAccount}</Text>
         </Pressable>
       </KeyboardAvoidingView>
     </>
