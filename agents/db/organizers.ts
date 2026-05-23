@@ -1,4 +1,5 @@
 import { getSupabase } from "./client";
+import { config } from "../config";
 import type { Organizer } from "../../types/database";
 
 export async function findOrganizerByName(name: string): Promise<Organizer | null> {
@@ -32,6 +33,11 @@ export async function findOrCreateOrganizer(
   const existing = await findOrganizerByName(name);
   if (existing) {
     return { organizer: existing, created: false };
+  }
+
+  if (!config.autoCreateOrganizers) {
+    console.log(`[kill-switch] Skipping new organizer creation for "${name}" (autoCreateOrganizers disabled)`);
+    return { organizer: null, created: false };
   }
 
   const created = await createOrganizer(name);

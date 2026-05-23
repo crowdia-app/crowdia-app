@@ -26,6 +26,10 @@ export const config = {
   timeWindowDays: 14,
   rateLimitMs: 4000, // 4 seconds = 15 req/min, safely under OpenRouter's 20 req/min limit
   targetMetro: "Palermo",
+
+  // Kill-switches for manual-curation mode (set env var to "true" to re-enable)
+  autoCreateOrganizers: process.env.AUTO_CREATE_ORGANIZERS === "true", // default: false — paused per Mattia 2026-05-22
+  autoDiscoverSources: process.env.AUTO_DISCOVER_SOURCES === "true",   // default: false — paused per Mattia 2026-05-22
 };
 
 export function validateConfig(): void {

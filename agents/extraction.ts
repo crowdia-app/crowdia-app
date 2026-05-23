@@ -571,39 +571,42 @@ export async function runExtractionAgent(
             await logger.debug(`Tracked ${uniqueHashtags.length} hashtags from @${source.instagramHandle}`);
           }
 
-          // Queue mentions for discovery
-          const uniqueMentions = [...new Set(allMentions)];
-          if (uniqueMentions.length > 0) {
-            const { queued } = await queuePotentialSources(uniqueMentions, {
-              sourceId: source.id,
-              method: "mention",
-            });
-            stats.mentionsExtracted += uniqueMentions.length;
-            stats.potentialSourcesQueued += queued;
-            await logger.debug(`Queued ${queued} new mentions from @${source.instagramHandle}`);
-          }
+          // Queue mentions/collabs/tagged users for discovery (gated by kill-switch)
+          if (config.autoDiscoverSources) {
+            const uniqueMentions = [...new Set(allMentions)];
+            if (uniqueMentions.length > 0) {
+              const { queued } = await queuePotentialSources(uniqueMentions, {
+                sourceId: source.id,
+                method: "mention",
+              });
+              stats.mentionsExtracted += uniqueMentions.length;
+              stats.potentialSourcesQueued += queued;
+              await logger.debug(`Queued ${queued} new mentions from @${source.instagramHandle}`);
+            }
 
-          // Queue collab users for discovery (higher priority)
-          const uniqueCollabs = [...new Set(allCollabUsers)];
-          if (uniqueCollabs.length > 0) {
-            const { queued } = await queuePotentialSources(uniqueCollabs, {
-              sourceId: source.id,
-              method: "collab_post",
-            });
-            stats.collabUsersExtracted += uniqueCollabs.length;
-            stats.potentialSourcesQueued += queued;
-            await logger.debug(`Queued ${queued} collab users from @${source.instagramHandle}`);
-          }
+            const uniqueCollabs = [...new Set(allCollabUsers)];
+            if (uniqueCollabs.length > 0) {
+              const { queued } = await queuePotentialSources(uniqueCollabs, {
+                sourceId: source.id,
+                method: "collab_post",
+              });
+              stats.collabUsersExtracted += uniqueCollabs.length;
+              stats.potentialSourcesQueued += queued;
+              await logger.debug(`Queued ${queued} collab users from @${source.instagramHandle}`);
+            }
 
-          // Queue tagged users for discovery
-          const uniqueTagged = [...new Set(allTaggedUsers)];
-          if (uniqueTagged.length > 0) {
-            const { queued } = await queuePotentialSources(uniqueTagged, {
-              sourceId: source.id,
-              method: "tagged_user",
-            });
-            stats.potentialSourcesQueued += queued;
-            await logger.debug(`Queued ${queued} tagged users from @${source.instagramHandle}`);
+            const uniqueTagged = [...new Set(allTaggedUsers)];
+            if (uniqueTagged.length > 0) {
+              const { queued } = await queuePotentialSources(uniqueTagged, {
+                sourceId: source.id,
+                method: "tagged_user",
+              });
+              stats.potentialSourcesQueued += queued;
+              await logger.debug(`Queued ${queued} tagged users from @${source.instagramHandle}`);
+            }
+          } else {
+            stats.mentionsExtracted += allMentions.length;
+            stats.collabUsersExtracted += allCollabUsers.length;
           }
           // ========== END DISCOVERY V2 ==========
 
@@ -668,80 +671,75 @@ export async function runExtractionAgent(
           const content = await fetchPageWithFallback(source.url);
           await logger.debug(`Fetched ${content.length} chars from ${source.name}`);
 
-          // ========== WEB CRAWLING: Extract links for discovery ==========
-          try {
-            // Try to get raw HTML for link extraction (content may be markdown from Jina)
-            let htmlContent = content;
-            if (!content.includes("<a ") && !content.includes("href=")) {
-              // Content is likely markdown, try to fetch raw HTML
-              try {
-                htmlContent = await fetchPageDirect(source.url);
-              } catch {
-                // Fall back to using the markdown content for @mentions
-                htmlContent = content;
+          // ========== WEB CRAWLING: Extract links for discovery (gated by kill-switch) ==========
+          if (config.autoDiscoverSources) {
+            try {
+              // Try to get raw HTML for link extraction (content may be markdown from Jina)
+              let htmlContent = content;
+              if (!content.includes("<a ") && !content.includes("href=")) {
+                try {
+                  htmlContent = await fetchPageDirect(source.url);
+                } catch {
+                  htmlContent = content;
+                }
               }
-            }
 
-            const extractedLinks = extractLinksFromHtml(htmlContent, source.url);
-            
-            // Queue Instagram links from the page
-            const instagramHandles = extractedLinks.socialLinks
-              .filter(l => l.platform === "instagram" && l.handle)
-              .map(l => l.handle!);
-            
-            if (instagramHandles.length > 0) {
-              const { queued } = await queuePotentialSources(instagramHandles, {
-                sourceId: source.id,
-                method: "website_crawl",
-              });
-              stats.socialLinksExtracted += instagramHandles.length;
-              stats.potentialSourcesQueued += queued;
-              if (queued > 0) {
-                await logger.debug(`Queued ${queued} Instagram handles from ${source.name}`);
+              const extractedLinks = extractLinksFromHtml(htmlContent, source.url);
+
+              const instagramHandles = extractedLinks.socialLinks
+                .filter(l => l.platform === "instagram" && l.handle)
+                .map(l => l.handle!);
+
+              if (instagramHandles.length > 0) {
+                const { queued } = await queuePotentialSources(instagramHandles, {
+                  sourceId: source.id,
+                  method: "website_crawl",
+                });
+                stats.socialLinksExtracted += instagramHandles.length;
+                stats.potentialSourcesQueued += queued;
+                if (queued > 0) {
+                  await logger.debug(`Queued ${queued} Instagram handles from ${source.name}`);
+                }
               }
-            }
 
-            // Queue event platform links (Eventbrite, Dice, etc.)
-            if (extractedLinks.eventPlatformLinks.length > 0) {
-              const { queued } = await queueWebsiteSources(
-                extractedLinks.eventPlatformLinks.map(l => ({ url: l.url, platform: l.platform })),
-                { sourceId: source.id, method: "website_crawl" }
-              );
-              stats.eventPlatformLinksExtracted += extractedLinks.eventPlatformLinks.length;
-              stats.websiteSourcesQueued += queued;
-              if (queued > 0) {
-                await logger.debug(`Queued ${queued} event platform links from ${source.name}`);
+              if (extractedLinks.eventPlatformLinks.length > 0) {
+                const { queued } = await queueWebsiteSources(
+                  extractedLinks.eventPlatformLinks.map(l => ({ url: l.url, platform: l.platform })),
+                  { sourceId: source.id, method: "website_crawl" }
+                );
+                stats.eventPlatformLinksExtracted += extractedLinks.eventPlatformLinks.length;
+                stats.websiteSourcesQueued += queued;
+                if (queued > 0) {
+                  await logger.debug(`Queued ${queued} event platform links from ${source.name}`);
+                }
               }
-            }
 
-            // Queue organizer/venue links
-            const allOrgVenueLinks = [
-              ...extractedLinks.organizerLinks,
-              ...extractedLinks.venueLinks,
-            ];
-            if (allOrgVenueLinks.length > 0) {
-              const { queued } = await queueWebsiteSources(
-                allOrgVenueLinks.map(l => ({ url: l.url, name: l.name })),
-                { sourceId: source.id, method: "website_crawl" }
-              );
-              stats.websiteSourcesQueued += queued;
-            }
-
-            // Also extract organizer names from text for Instagram search
-            const orgNames = extractOrganizerNames(content);
-            if (orgNames.length > 0) {
-              const { queued } = await queueOrganizerNames(orgNames, {
-                sourceId: source.id,
-                method: "website_crawl",
-              });
-              stats.organizerNamesQueued += queued;
-              if (queued > 0) {
-                await logger.debug(`Queued ${queued} organizer names for Instagram search`);
+              const allOrgVenueLinks = [
+                ...extractedLinks.organizerLinks,
+                ...extractedLinks.venueLinks,
+              ];
+              if (allOrgVenueLinks.length > 0) {
+                const { queued } = await queueWebsiteSources(
+                  allOrgVenueLinks.map(l => ({ url: l.url, name: l.name })),
+                  { sourceId: source.id, method: "website_crawl" }
+                );
+                stats.websiteSourcesQueued += queued;
               }
+
+              const orgNames = extractOrganizerNames(content);
+              if (orgNames.length > 0) {
+                const { queued } = await queueOrganizerNames(orgNames, {
+                  sourceId: source.id,
+                  method: "website_crawl",
+                });
+                stats.organizerNamesQueued += queued;
+                if (queued > 0) {
+                  await logger.debug(`Queued ${queued} organizer names for Instagram search`);
+                }
+              }
+            } catch (linkError) {
+              await logger.debug(`Link extraction failed for ${source.name}: ${linkError instanceof Error ? linkError.message : String(linkError)}`);
             }
-          } catch (linkError) {
-            // Link extraction is non-critical, continue with event extraction
-            await logger.debug(`Link extraction failed for ${source.name}: ${linkError instanceof Error ? linkError.message : String(linkError)}`);
           }
           // ========== END WEB CRAWLING ==========
 
