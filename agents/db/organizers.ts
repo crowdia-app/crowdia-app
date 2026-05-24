@@ -12,6 +12,16 @@ export async function findOrganizerByName(name: string): Promise<Organizer | nul
   return data;
 }
 
+export async function findOrganizerById(id: string): Promise<Organizer | null> {
+  const { data } = await getSupabase()
+    .from("organizers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  return data;
+}
+
 export async function createOrganizer(name: string): Promise<Organizer | null> {
   const { data, error } = await getSupabase()
     .from("organizers")

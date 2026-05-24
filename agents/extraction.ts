@@ -7,6 +7,7 @@ import {
   getEventById,
   findOrCreateLocation,
   findOrCreateOrganizer,
+  findOrganizerById,
   findOrCreateCategory,
   cleanupStuckRuns,
   createEventMention,
@@ -961,9 +962,16 @@ export async function runExtractionAgent(
           stats.locationsCreated++;
         }
 
-        // Find or create organizer
+        // Find or create organizer (falls back to source's organizer when kill-switch blocks creation)
         const organizerName = extracted.organizer_name || source.name;
-        const { organizer, created: organizerCreated } = await findOrCreateOrganizer(organizerName);
+        let { organizer, created: organizerCreated } = await findOrCreateOrganizer(organizerName);
+
+        if (!organizer && source.organizerId) {
+          organizer = await findOrganizerById(source.organizerId);
+          if (organizer) {
+            console.log(`[kill-switch] Fallback to source organizer "${organizer.organization_name}" for "${extracted.title}"`);
+          }
+        }
 
         if (!organizer) {
           console.error(`Could not find/create organizer for: ${extracted.title}`);

@@ -8,7 +8,7 @@ export {
   type DuplicateCheckResult,
 } from "./events";
 export { findLocationByName, createLocation, findOrCreateLocation } from "./locations";
-export { findOrganizerByName, createOrganizer, findOrCreateOrganizer } from "./organizers";
+export { findOrganizerByName, findOrganizerById, createOrganizer, findOrCreateOrganizer } from "./organizers";
 export { findOrCreateCategory } from "./categories";
 export { getEventSources, createEventMention, updateSourceLastScraped, type EventSource } from "./sources";
 export { cleanupStuckRuns } from "./runs";
