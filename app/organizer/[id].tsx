@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,12 +17,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { fetchOrganizerById, fetchOrganizerEvents } from '@/services/organizers';
+import {
+  fetchOrganizerById,
+  fetchOrganizerEvents,
+  fetchOrganizerPastEvents,
+  fetchOrganizerEventCount,
+} from '@/services/organizers';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
 
-const HERO_HEIGHT = 200;
+const HERO_HEIGHT = 280;
+type Tab = 'upcoming' | 'archive';
 
 function HeaderButton({ onPress, icon }: { onPress: () => void; icon: string }) {
   return (
@@ -41,8 +47,8 @@ export default function OrganizerProfileScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
-
   const [logoError, setLogoError] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('upcoming');
 
   const { data: organizer, isLoading: isLoadingOrganizer } = useQuery({
     queryKey: ['organizer', id],
@@ -50,65 +56,120 @@ export default function OrganizerProfileScreen() {
     enabled: !!id,
   });
 
-  const { data: events = [], isLoading: isLoadingEvents } = useQuery({
+  const { data: upcomingEvents = [], isLoading: isLoadingUpcoming } = useQuery({
     queryKey: ['organizer-events', id],
     queryFn: () => fetchOrganizerEvents(id!),
     enabled: !!id,
   });
 
-  const handleBack = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const { data: pastEvents = [], isLoading: isLoadingPast } = useQuery({
+    queryKey: ['organizer-past-events', id],
+    queryFn: () => fetchOrganizerPastEvents(id!),
+    enabled: !!id,
+  });
+
+  const { data: totalEventCount = 0 } = useQuery({
+    queryKey: ['organizer-event-count', id],
+    queryFn: () => fetchOrganizerEventCount(id!),
+    enabled: !!id,
+  });
+
+  const isLiveNow = useMemo(() => {
+    const now = Date.now();
+    return upcomingEvents.some((e) => {
+      if (!e.event_start_time || !e.event_end_time) return false;
+      return (
+        new Date(e.event_start_time).getTime() <= now &&
+        now <= new Date(e.event_end_time).getTime()
+      );
+    });
+  }, [upcomingEvents]);
+
+  const communityInterest = useMemo(() => {
+    return [...upcomingEvents, ...pastEvents].reduce(
+      (sum, e) => sum + (e.interested_count ?? 0) + (e.check_ins_count ?? 0),
+      0,
+    );
+  }, [upcomingEvents, pastEvents]);
+
+  const frequentVenues = useMemo(() => {
+    const seen = new Map<string, { id: string; name: string; count: number }>();
+    for (const e of [...upcomingEvents, ...pastEvents]) {
+      if (!e.location_id || !e.location_name) continue;
+      const existing = seen.get(e.location_id);
+      if (existing) existing.count += 1;
+      else seen.set(e.location_id, { id: e.location_id, name: e.location_name, count: 1 });
     }
+    return Array.from(seen.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [upcomingEvents, pastEvents]);
+
+  const hasLogo = !!organizer?.logo_url && !logoError;
+  const isVerified = !!organizer?.is_verified;
+
+  const handleBack = () => {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   };
 
   const handleOpenWebsite = () => {
     if (!organizer?.website_url) return;
-    if (Platform.OS === 'web') {
-      window.open(organizer.website_url, '_blank');
-    } else {
-      Linking.openURL(organizer.website_url);
-    }
+    if (Platform.OS === 'web') window.open(organizer.website_url, '_blank');
+    else Linking.openURL(organizer.website_url);
   };
 
   const handleOpenInstagram = () => {
     if (!organizer?.instagram_handle) return;
     const handle = organizer.instagram_handle.replace('@', '');
     const url = `https://instagram.com/${handle}`;
-    if (Platform.OS === 'web') {
-      window.open(url, '_blank');
-    } else {
-      Linking.openURL(url);
-    }
+    if (Platform.OS === 'web') window.open(url, '_blank');
+    else Linking.openURL(url);
   };
 
-  const handleEmail = () => {
-    if (!organizer?.email) return;
-    Linking.openURL(`mailto:${organizer.email}`);
-  };
-
-  const handlePhone = () => {
-    if (!organizer?.phone) return;
-    Linking.openURL(`tel:${organizer.phone}`);
-  };
-
-  const hasLogo = !!organizer?.logo_url && !logoError;
+  const heroEl = (
+    <View style={[styles.heroContainer, { height: HERO_HEIGHT + insets.top }]}>
+      <LinearGradient
+        colors={['#080808', '#121212', '#1c1c1c', colors.background] as any}
+        locations={[0, 0.35, 0.65, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
+        <HeaderButton onPress={handleBack} icon="arrow-back" />
+      </View>
+      {organizer && (
+        <View style={styles.avatarWrapper}>
+          <View style={[styles.haloRing, isLiveNow && styles.haloActive]}>
+            <View style={[styles.avatarInner, { backgroundColor: colors.card }]}>
+              {hasLogo ? (
+                <Image
+                  source={{ uri: organizer.logo_url! }}
+                  style={styles.avatarImage}
+                  contentFit="contain"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <View style={[styles.avatarPlaceholder, { backgroundColor: Magenta[500] + '1a' }]}>
+                  <Ionicons name="business-outline" size={36} color={Magenta[500]} />
+                </View>
+              )}
+            </View>
+          </View>
+          {isLiveNow && (
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
 
   if (isLoadingOrganizer) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.fakeHero, { height: HERO_HEIGHT + insets.top }]}>
-          <LinearGradient
-            colors={[Magenta[700], Magenta[500]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
-            <HeaderButton onPress={handleBack} icon="arrow-back" />
-          </View>
-        </View>
+        {heroEl}
         <View style={styles.loadingContainer}>
           <StaticGlowLogo size={48} />
         </View>
@@ -119,17 +180,7 @@ export default function OrganizerProfileScreen() {
   if (!organizer) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.fakeHero, { height: HERO_HEIGHT + insets.top }]}>
-          <LinearGradient
-            colors={[Magenta[700], Magenta[500]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
-            <HeaderButton onPress={handleBack} icon="arrow-back" />
-          </View>
-        </View>
+        {heroEl}
         <View style={styles.errorContainer}>
           <Text style={[styles.errorTitle, { color: colors.text }]}>Organizer not found</Text>
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
@@ -140,145 +191,169 @@ export default function OrganizerProfileScreen() {
     );
   }
 
+  const activeEvents = activeTab === 'upcoming' ? upcomingEvents : pastEvents;
+  const isLoadingEvents = activeTab === 'upcoming' ? isLoadingUpcoming : isLoadingPast;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xxxl }}
       >
-        {/* Hero Banner */}
-        <View style={[styles.fakeHero, { height: HERO_HEIGHT + insets.top }]}>
-          <LinearGradient
-            colors={[Magenta[700], Magenta[500], Magenta[400]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          {/* Back button */}
-          <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
-            <HeaderButton onPress={handleBack} icon="arrow-back" />
+        {heroEl}
+
+        {/* Name + Authority Badge */}
+        <View style={styles.nameSection}>
+          <Text style={[styles.orgName, { color: colors.text }]}>{organizer.organization_name}</Text>
+          <View
+            style={[
+              styles.authorityBadge,
+              { backgroundColor: Magenta[500] + '18', borderColor: Magenta[500] + '40' },
+            ]}
+          >
+            {isVerified && <Ionicons name="checkmark-circle" size={13} color={Magenta[500]} />}
+            <Text style={[styles.authorityText, { color: Magenta[500] }]}>Organizzazione</Text>
           </View>
         </View>
 
-        {/* Profile Header Card */}
-        <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
-          {/* Logo */}
-          <View style={[styles.logoWrapper, { backgroundColor: colors.background, borderColor: colors.card }]}>
-            {hasLogo ? (
-              <Image
-                source={{ uri: organizer.logo_url! }}
-                style={styles.logo}
-                contentFit="contain"
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <View style={[styles.logoPlaceholder, { backgroundColor: Magenta[500] + '20' }]}>
-                <Ionicons name="business-outline" size={32} color={Magenta[500]} />
-              </View>
-            )}
-          </View>
-
-          {/* Name + Verified */}
-          <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
-              {organizer.organization_name}
+        {/* B2B CTA for unverified organizers */}
+        {!isVerified && (
+          <View style={[styles.b2bCard, { backgroundColor: colors.card }]}>
+            <Ionicons name="business-outline" size={20} color={Magenta[500]} style={{ marginTop: 1 }} />
+            <Text style={[styles.b2bText, { color: colors.textSecondary }]} numberOfLines={4}>
+              {'Sei il proprietario di '}
+              <Text style={{ color: colors.text, fontWeight: '600' }}>{organizer.organization_name}</Text>
+              {'? Attiva la gestione di questo profilo con i suoi eventi e sblocca gli analytics.'}
             </Text>
-            {organizer.is_verified ? (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={18} color={Magenta[500]} />
-                <Text style={[styles.verifiedText, { color: Magenta[500] }]}>Verified</Text>
-              </View>
+          </View>
+        )}
+
+        {/* Social connectors */}
+        {(organizer.instagram_handle || organizer.website_url) ? (
+          <View style={styles.socialRow}>
+            {organizer.instagram_handle ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.socialChip,
+                  { backgroundColor: colors.card },
+                  pressed && styles.pressed,
+                ]}
+                onPress={handleOpenInstagram}
+              >
+                <Ionicons name="logo-instagram" size={16} color={colors.textSecondary} />
+                <Text style={[styles.socialChipText, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {organizer.instagram_handle.startsWith('@')
+                    ? organizer.instagram_handle
+                    : `@${organizer.instagram_handle}`}
+                </Text>
+              </Pressable>
+            ) : null}
+            {organizer.website_url ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.socialChip,
+                  { backgroundColor: colors.card },
+                  pressed && styles.pressed,
+                ]}
+                onPress={handleOpenWebsite}
+              >
+                <Ionicons name="globe-outline" size={16} color={colors.textSecondary} />
+                <Text style={[styles.socialChipText, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {organizer.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                </Text>
+                <Ionicons name="open-outline" size={13} color={colors.textMuted} />
+              </Pressable>
             ) : null}
           </View>
+        ) : null}
 
-          {/* Social Links + Contact */}
-          {(organizer.website_url || organizer.instagram_handle || organizer.email || organizer.phone) ? (
-            <View style={styles.socialRow}>
-              {organizer.website_url ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.socialChip,
-                    { backgroundColor: colors.background },
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={handleOpenWebsite}
-                >
-                  <Ionicons name="globe-outline" size={16} color={colors.textSecondary} />
-                  <Text style={[styles.socialChipText, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {organizer.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                  </Text>
-                  <Ionicons name="open-outline" size={14} color={colors.textMuted} />
-                </Pressable>
-              ) : null}
-              {organizer.instagram_handle ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.socialChip,
-                    { backgroundColor: colors.background },
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={handleOpenInstagram}
-                >
-                  <Ionicons name="logo-instagram" size={16} color={colors.textSecondary} />
-                  <Text style={[styles.socialChipText, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {organizer.instagram_handle.startsWith('@')
-                      ? organizer.instagram_handle
-                      : `@${organizer.instagram_handle}`}
-                  </Text>
-                  <Ionicons name="open-outline" size={14} color={colors.textMuted} />
-                </Pressable>
-              ) : null}
-              {organizer.email ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.socialChip,
-                    { backgroundColor: colors.background },
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={handleEmail}
-                >
-                  <Ionicons name="mail-outline" size={16} color={colors.textSecondary} />
-                  <Text style={[styles.socialChipText, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {organizer.email}
-                  </Text>
-                </Pressable>
-              ) : null}
-              {organizer.phone ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.socialChip,
-                    { backgroundColor: colors.background },
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={handlePhone}
-                >
-                  <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
-                  <Text style={[styles.socialChipText, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {organizer.phone}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
+        {/* Performance stats */}
+        <View style={[styles.statsRow, { backgroundColor: colors.card }]}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{totalEventCount}</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>URBAN FOOTPRINT</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.background }]} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{communityInterest}</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>COMMUNITY INTEREST</Text>
+          </View>
         </View>
 
-        {/* Upcoming Events */}
-        <View style={styles.eventsSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Events</Text>
+        {/* Frequently Seen At */}
+        {frequentVenues.length > 0 ? (
+          <View style={styles.venueCarouselSection}>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>FREQUENTLY SEEN AT</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.venueCarouselContent}
+            >
+              {frequentVenues.map((v) => (
+                <Pressable
+                  key={v.id}
+                  style={({ pressed }) => [
+                    styles.venueChip,
+                    { backgroundColor: colors.card },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => router.push(`/venue/${v.id}`)}
+                >
+                  <Ionicons name="location-outline" size={13} color={Magenta[500]} />
+                  <Text style={[styles.venueChipText, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {v.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
+        {/* Tab navigation */}
+        <View style={[styles.tabBar, { backgroundColor: colors.card }]}>
+          <Pressable
+            style={[styles.tab, activeTab === 'upcoming' && styles.tabActive]}
+            onPress={() => setActiveTab('upcoming')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'upcoming' ? Magenta[500] : colors.textMuted },
+              ]}
+            >
+              Prossimi eventi
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tab, activeTab === 'archive' && styles.tabActive]}
+            onPress={() => setActiveTab('archive')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'archive' ? Magenta[500] : colors.textMuted },
+              ]}
+            >
+              The Vault
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Event list */}
+        <View style={styles.eventsSection}>
           {isLoadingEvents ? (
             <View style={styles.eventsLoadingContainer}>
               <StaticGlowLogo size={36} />
             </View>
-          ) : events.length === 0 ? (
+          ) : activeEvents.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
               <Ionicons name="calendar-outline" size={32} color={colors.textMuted} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No upcoming events
+                {activeTab === 'upcoming' ? 'Nessun evento in programma' : 'Nessun evento passato'}
               </Text>
             </View>
           ) : (
-            events.map((event) => (
+            activeEvents.map((event) => (
               <EventCard
                 key={event.id}
                 event={event}
@@ -296,10 +371,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  fakeHero: {
+  heroContainer: {
     width: '100%',
-    position: 'relative',
     justifyContent: 'flex-start',
+    overflow: 'hidden',
   },
   headerRow: {
     paddingHorizontal: Spacing.md,
@@ -309,12 +384,76 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerButtonPressed: {
     opacity: 0.7,
+  },
+  avatarWrapper: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: -52,
+  },
+  haloRing: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 3,
+    borderColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  haloActive: {
+    borderColor: Magenta[500],
+    shadowColor: Magenta[500],
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 14,
+    elevation: 14,
+  },
+  avatarInner: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  livePill: {
+    position: 'absolute',
+    bottom: -2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+  },
+  liveText: {
+    fontSize: Typography.xxs,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -338,57 +477,51 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     textAlign: 'center',
   },
-  profileCard: {
-    marginHorizontal: Spacing.lg,
-    marginTop: -48,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    paddingTop: 56,
-  },
-  logoWrapper: {
-    position: 'absolute',
-    top: -44,
-    left: Spacing.lg,
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 3,
-    overflow: 'hidden',
-    justifyContent: 'center',
+  nameSection: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 64,
     alignItems: 'center',
-  },
-  logo: {
-    width: '100%',
-    height: '100%',
-  },
-  logoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  name: {
-    fontSize: Typography.xl,
+  orgName: {
+    fontSize: Typography.xxl,
     fontWeight: '700',
-    flex: 1,
+    textAlign: 'center',
   },
-  verifiedBadge: {
+  authorityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.sm,
   },
-  verifiedText: {
-    fontSize: Typography.sm,
+  authorityText: {
+    fontSize: Typography.xs,
     fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  b2bCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  b2bText: {
+    fontSize: Typography.sm,
+    flex: 1,
+    lineHeight: 20,
   },
   socialRow: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.sm,
   },
   socialChip: {
@@ -397,25 +530,90 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingVertical: Spacing.xs,
     paddingHorizontal: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    alignSelf: 'flex-start',
+    borderRadius: BorderRadius.full,
   },
   socialChipText: {
     fontSize: Typography.sm,
-    flex: 1,
-    maxWidth: 240,
+    maxWidth: 200,
   },
-  pressed: {
-    opacity: 0.7,
+  statsRow: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  statValue: {
+    fontSize: Typography.xl,
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: Typography.xxs,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    marginHorizontal: Spacing.md,
+  },
+  venueCarouselSection: {
+    marginBottom: Spacing.sm,
+    paddingLeft: Spacing.lg,
+  },
+  sectionLabel: {
+    fontSize: Typography.xxs,
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: Spacing.sm,
+  },
+  venueCarouselContent: {
+    gap: Spacing.sm,
+    paddingRight: Spacing.lg,
+  },
+  venueChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  venueChipText: {
+    fontSize: Typography.sm,
+    maxWidth: 140,
+  },
+  tabBar: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: Magenta[500],
+  },
+  tabText: {
+    fontSize: Typography.sm,
+    fontWeight: '600',
   },
   eventsSection: {
     paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: Typography.lg,
-    fontWeight: '700',
-    marginBottom: Spacing.md,
+    marginTop: Spacing.sm,
   },
   eventsLoadingContainer: {
     paddingVertical: Spacing.xxxl,
@@ -429,5 +627,8 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: Typography.base,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

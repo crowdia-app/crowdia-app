@@ -32,3 +32,32 @@ export async function fetchOrganizerEvents(organizerId: string, limit = 20): Pro
   }
   return (data ?? []) as EventWithStats[];
 }
+
+export async function fetchOrganizerPastEvents(organizerId: string, limit = 30): Promise<EventWithStats[]> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('events_with_stats')
+    .select('*')
+    .eq('organizer_id', organizerId)
+    .eq('is_published', true)
+    .lt('event_start_time', now)
+    .order('event_start_time', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching organizer past events:', error);
+    return [];
+  }
+  return (data ?? []) as EventWithStats[];
+}
+
+export async function fetchOrganizerEventCount(organizerId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('events_with_stats')
+    .select('id', { count: 'exact', head: true })
+    .eq('organizer_id', organizerId)
+    .eq('is_published', true);
+
+  if (error) return 0;
+  return count ?? 0;
+}
