@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,17 +12,40 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { fetchVenueById, fetchVenueEvents } from '@/services/venues';
-import { Colors, Spacing, BorderRadius, Typography, Blue } from '@/constants/theme';
+import { fetchOrganizerById } from '@/services/organizers';
+import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
 import { MapSection } from '@/components/maps/MapSection';
+import { useEventsFilterStore } from '@/stores/eventsFilterStore';
 
-const HERO_HEIGHT = 200;
+const HERO_HEIGHT = 280;
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(km: number): string {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+}
+
+function isOutdoorType(venueType: string | null): boolean {
+  if (!venueType) return false;
+  const t = venueType.toLowerCase();
+  return ['outdoor', 'rooftop', 'garden', 'beach', 'park'].some((k) => t.includes(k));
+}
 
 function HeaderButton({ onPress, icon }: { onPress: () => void; icon: string }) {
   return (
@@ -35,12 +58,15 @@ function HeaderButton({ onPress, icon }: { onPress: () => void; icon: string }) 
   );
 }
 
-function formatVenueType(venueType: string | null): string | null {
-  if (!venueType) return null;
-  return venueType
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+function AmenityChip({ icon, label }: { icon: string; label: string }) {
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
+  return (
+    <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
+      <Ionicons name={icon as any} size={15} color={colors.textSecondary} />
+      <Text style={[styles.amenityLabel, { color: colors.textSecondary }]}>{label}</Text>
+    </View>
+  );
 }
 
 export default function VenueProfileScreen() {
@@ -49,6 +75,8 @@ export default function VenueProfileScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
+  const userLocation = useEventsFilterStore((s) => s.userLocation);
+  const [logoError, setLogoError] = useState(false);
 
   const { data: venue, isLoading: isLoadingVenue } = useQuery({
     queryKey: ['venue', id],
@@ -62,46 +90,103 @@ export default function VenueProfileScreen() {
     enabled: !!id,
   });
 
+  const { data: organizer } = useQuery({
+    queryKey: ['organizer', venue?.operator_org_id],
+    queryFn: () => fetchOrganizerById(venue!.operator_org_id!),
+    enabled: !!venue?.operator_org_id,
+  });
+
+  const isVerified = !!venue?.operator_org_id;
+
+  const isLiveNow = useMemo(() => {
+    const now = Date.now();
+    return events.some((e) => {
+      if (!e.event_start_time || !e.event_end_time) return false;
+      return (
+        new Date(e.event_start_time).getTime() <= now &&
+        now <= new Date(e.event_end_time).getTime()
+      );
+    });
+  }, [events]);
+
+  const distanceLabel = useMemo(() => {
+    if (!userLocation || !venue) return null;
+    const km = haversineKm(userLocation.latitude, userLocation.longitude, venue.lat, venue.lng);
+    return formatDistance(km);
+  }, [userLocation, venue]);
+
+  const outdoor = isOutdoorType(venue?.venue_type ?? null);
+  const hasLogo = !!organizer?.logo_url && !logoError;
+
   const handleBack = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   };
 
   const handleOpenWebsite = () => {
     if (!venue?.website_url) return;
-    if (Platform.OS === 'web') {
-      window.open(venue.website_url, '_blank');
-    } else {
-      Linking.openURL(venue.website_url);
-    }
+    if (Platform.OS === 'web') window.open(venue.website_url, '_blank');
+    else Linking.openURL(venue.website_url);
   };
 
   const handleOpenMaps = () => {
     if (!venue) return;
-    const query = encodeURIComponent(venue.name);
+    const q = encodeURIComponent(venue.name);
     const url =
       Platform.OS === 'ios'
-        ? `maps://?q=${query}&ll=${venue.lat},${venue.lng}`
-        : `geo:${venue.lat},${venue.lng}?q=${query}`;
+        ? `maps://?q=${q}&ll=${venue.lat},${venue.lng}`
+        : `geo:${venue.lat},${venue.lng}?q=${q}`;
     Linking.openURL(url);
   };
+
+  const handleOpenOrganizer = () => {
+    if (!venue?.operator_org_id) return;
+    router.push(`/organizer/${venue.operator_org_id}`);
+  };
+
+  const heroEl = (
+    <View style={[styles.heroContainer, { height: HERO_HEIGHT + insets.top }]}>
+      <LinearGradient
+        colors={['#080808', '#121212', '#1c1c1c', colors.background] as any}
+        locations={[0, 0.35, 0.65, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
+        <HeaderButton onPress={handleBack} icon="arrow-back" />
+      </View>
+      {venue && (
+        <View style={styles.avatarWrapper}>
+          <View style={[styles.haloRing, isLiveNow && styles.haloActive]}>
+            <View style={[styles.avatarInner, { backgroundColor: colors.card }]}>
+              {hasLogo ? (
+                <Image
+                  source={{ uri: organizer!.logo_url! }}
+                  style={styles.avatarImage}
+                  contentFit="contain"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <View style={[styles.avatarPlaceholder, { backgroundColor: Magenta[500] + '1a' }]}>
+                  <Ionicons name="location-sharp" size={36} color={Magenta[500]} />
+                </View>
+              )}
+            </View>
+          </View>
+          {isLiveNow && (
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
 
   if (isLoadingVenue) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.heroContainer, { height: HERO_HEIGHT + insets.top }]}>
-          <LinearGradient
-            colors={[Blue[700], Blue[500]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
-            <HeaderButton onPress={handleBack} icon="arrow-back" />
-          </View>
-        </View>
+        {heroEl}
         <View style={styles.loadingContainer}>
           <StaticGlowLogo size={48} />
         </View>
@@ -112,17 +197,7 @@ export default function VenueProfileScreen() {
   if (!venue) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.heroContainer, { height: HERO_HEIGHT + insets.top }]}>
-          <LinearGradient
-            colors={[Blue[700], Blue[500]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
-            <HeaderButton onPress={handleBack} icon="arrow-back" />
-          </View>
-        </View>
+        {heroEl}
         <View style={styles.errorContainer}>
           <Text style={[styles.errorTitle, { color: colors.text }]}>Venue not found</Text>
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
@@ -133,83 +208,135 @@ export default function VenueProfileScreen() {
     );
   }
 
-  const venueTypeLabel = formatVenueType(venue.venue_type);
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xxxl }}
       >
-        {/* Hero Banner */}
-        <View style={[styles.heroContainer, { height: HERO_HEIGHT + insets.top }]}>
-          <LinearGradient
-            colors={[Blue[700], Blue[500], Blue[400]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
-            <HeaderButton onPress={handleBack} icon="arrow-back" />
+        {heroEl}
+
+        {/* Name + Authority Badge */}
+        <View style={styles.nameSection}>
+          <Text style={[styles.venueName, { color: colors.text }]}>{venue.name}</Text>
+          <View
+            style={[
+              styles.authorityBadge,
+              { backgroundColor: Magenta[500] + '18', borderColor: Magenta[500] + '40' },
+            ]}
+          >
+            <Text style={[styles.authorityText, { color: Magenta[500] }]}>
+              {isVerified ? 'Spazio & Organizzazione' : 'Spazio'}
+            </Text>
           </View>
         </View>
 
-        {/* Profile Card */}
-        <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
-          {/* Icon */}
-          <View style={[styles.iconWrapper, { backgroundColor: colors.background, borderColor: colors.card }]}>
-            <View style={[styles.iconPlaceholder, { backgroundColor: Blue[500] + '20' }]}>
-              <Ionicons name="location-sharp" size={32} color={Blue[500]} />
-            </View>
+        {/* B2B CTA for unverified spaces */}
+        {!isVerified && (
+          <View style={[styles.b2bCard, { backgroundColor: colors.card }]}>
+            <Ionicons name="business-outline" size={20} color={Magenta[500]} style={{ marginTop: 1 }} />
+            <Text style={[styles.b2bText, { color: colors.textSecondary }]} numberOfLines={4}>
+              {'Sei il proprietario di '}
+              <Text style={{ color: colors.text, fontWeight: '600' }}>{venue.name}</Text>
+              {'? Attiva la gestione di questo profilo con i suoi eventi e sblocca gli analytics.'}
+            </Text>
+          </View>
+        )}
+
+        {/* Status row: live status + distance + address */}
+        <View style={[styles.statusRow, { backgroundColor: colors.card }]}>
+          <View style={styles.statusItem}>
+            <View
+              style={[styles.statusDot, { backgroundColor: isLiveNow ? '#22c55e' : colors.textMuted }]}
+            />
+            <Text style={[styles.statusLabel, { color: isLiveNow ? '#22c55e' : colors.textSecondary }]}>
+              {isLiveNow ? 'Aperto Ora' : 'Chiuso'}
+            </Text>
           </View>
 
-          {/* Name + Type */}
-          <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
-              {venue.name}
-            </Text>
-            {venueTypeLabel ? (
-              <View style={[styles.typeBadge, { backgroundColor: Blue[500] + '20' }]}>
-                <Text style={[styles.typeBadgeText, { color: Blue[500] }]}>{venueTypeLabel}</Text>
+          {distanceLabel ? (
+            <>
+              <View style={[styles.statusDivider, { backgroundColor: colors.background }]} />
+              <View style={styles.statusItem}>
+                <Ionicons name="navigate-outline" size={13} color={colors.textSecondary} />
+                <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>
+                  {distanceLabel}
+                </Text>
               </View>
+            </>
+          ) : null}
+
+          {venue.address ? (
+            <>
+              <View style={[styles.statusDivider, { backgroundColor: colors.background }]} />
+              <Pressable
+                style={[styles.statusItem, styles.statusItemFlex]}
+                onPress={handleOpenMaps}
+              >
+                <Ionicons name="map-outline" size={13} color={colors.textSecondary} />
+                <Text
+                  style={[styles.statusLabel, styles.statusAddressText, { color: colors.textSecondary }]}
+                  numberOfLines={1}
+                >
+                  {venue.address}
+                </Text>
+                <Ionicons name="open-outline" size={11} color={colors.textMuted} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+
+        {/* Link to managing organizer */}
+        {isVerified ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.infoRow,
+              { backgroundColor: colors.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={handleOpenOrganizer}
+          >
+            <Ionicons name="business-outline" size={16} color={Magenta[500]} />
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              {'Gestito da '}
+              <Text style={{ color: Magenta[500], fontWeight: '600' }}>
+                {organizer?.organization_name ?? 'Organizzazione'}
+              </Text>
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
+
+        {/* Website */}
+        {venue.website_url ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.infoRow,
+              { backgroundColor: colors.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={handleOpenWebsite}
+          >
+            <Ionicons name="globe-outline" size={16} color={colors.textSecondary} />
+            <Text style={[styles.infoText, { color: colors.textSecondary }]} numberOfLines={1}>
+              {venue.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            </Text>
+            <Ionicons name="open-outline" size={14} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
+
+        {/* Amenities */}
+        <View style={[styles.amenitiesCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardSectionLabel, { color: colors.textMuted }]}>CARATTERISTICHE</Text>
+          <View style={styles.amenitiesGrid}>
+            <AmenityChip
+              icon={outdoor ? 'partly-sunny-outline' : 'home-outline'}
+              label={outdoor ? "All'aperto" : 'Al chiuso'}
+            />
+            {venue.seasonality ? (
+              <AmenityChip icon="calendar-outline" label={venue.seasonality} />
             ) : null}
           </View>
-
-          {/* Address */}
-          {venue.address ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.infoRow,
-                { backgroundColor: colors.background },
-                pressed && styles.pressed,
-              ]}
-              onPress={handleOpenMaps}
-            >
-              <Ionicons name="map-outline" size={16} color={colors.textSecondary} />
-              <Text style={[styles.infoText, { color: colors.textSecondary }]} numberOfLines={2}>
-                {venue.address}
-              </Text>
-              <Ionicons name="open-outline" size={14} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
-
-          {/* Website */}
-          {venue.website_url ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.infoRow,
-                { backgroundColor: colors.background },
-                pressed && styles.pressed,
-              ]}
-              onPress={handleOpenWebsite}
-            >
-              <Ionicons name="globe-outline" size={16} color={colors.textSecondary} />
-              <Text style={[styles.infoText, { color: colors.textSecondary }]} numberOfLines={1}>
-                {venue.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-              </Text>
-              <Ionicons name="open-outline" size={14} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
         </View>
 
         {/* Map */}
@@ -225,7 +352,7 @@ export default function VenueProfileScreen() {
 
         {/* Upcoming Events */}
         <View style={styles.eventsSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Events</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Prossimi eventi</Text>
 
           {isLoadingEvents ? (
             <View style={styles.eventsLoadingContainer}>
@@ -235,7 +362,7 @@ export default function VenueProfileScreen() {
             <View style={[styles.emptyState, { backgroundColor: colors.card }]}>
               <Ionicons name="calendar-outline" size={32} color={colors.textMuted} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No upcoming events
+                Nessun evento in programma
               </Text>
             </View>
           ) : (
@@ -259,8 +386,8 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     width: '100%',
-    position: 'relative',
     justifyContent: 'flex-start',
+    overflow: 'hidden',
   },
   headerRow: {
     paddingHorizontal: Spacing.md,
@@ -270,12 +397,76 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerButtonPressed: {
     opacity: 0.7,
+  },
+  avatarWrapper: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: -52,
+  },
+  haloRing: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 3,
+    borderColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  haloActive: {
+    borderColor: Magenta[500],
+    shadowColor: Magenta[500],
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 14,
+    elevation: 14,
+  },
+  avatarInner: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  livePill: {
+    position: 'absolute',
+    bottom: -2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+  },
+  liveText: {
+    fontSize: Typography.xxs,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -299,77 +490,125 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     textAlign: 'center',
   },
-  profileCard: {
-    marginHorizontal: Spacing.lg,
-    marginTop: -48,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    paddingTop: 56,
-  },
-  iconWrapper: {
-    position: 'absolute',
-    top: -44,
-    left: Spacing.lg,
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 3,
-    overflow: 'hidden',
-    justifyContent: 'center',
+  nameSection: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 64,
     alignItems: 'center',
-  },
-  iconPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  name: {
-    fontSize: Typography.xl,
+  venueName: {
+    fontSize: Typography.xxl,
     fontWeight: '700',
-    flex: 1,
+    textAlign: 'center',
   },
-  typeBadge: {
+  authorityBadge: {
     borderRadius: BorderRadius.md,
+    borderWidth: 1,
     paddingVertical: 4,
     paddingHorizontal: Spacing.sm,
   },
-  typeBadgeText: {
+  authorityText: {
     fontSize: Typography.xs,
     fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  b2bCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  b2bText: {
+    fontSize: Typography.sm,
+    flex: 1,
+    lineHeight: 20,
+  },
+  statusRow: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  statusItemFlex: {
+    flex: 1,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusLabel: {
+    fontSize: Typography.sm,
+  },
+  statusAddressText: {
+    flex: 1,
+  },
+  statusDivider: {
+    width: 1,
+    height: 16,
+    marginHorizontal: Spacing.sm,
   },
   infoRow: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    alignSelf: 'flex-start',
-    marginBottom: Spacing.xs,
   },
   infoText: {
     fontSize: Typography.sm,
     flex: 1,
-    maxWidth: 260,
   },
-  pressed: {
-    opacity: 0.7,
+  amenitiesCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+  },
+  cardSectionLabel: {
+    fontSize: Typography.xxs,
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: Spacing.sm,
+  },
+  amenitiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  amenityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.md,
+  },
+  amenityLabel: {
+    fontSize: Typography.sm,
   },
   mapWrapper: {
     paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
   },
   eventsSection: {
     paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.xl,
+    marginTop: Spacing.sm,
   },
   sectionTitle: {
     fontSize: Typography.lg,
@@ -388,5 +627,8 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: Typography.base,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });
