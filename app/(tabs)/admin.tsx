@@ -122,6 +122,7 @@ export default function AdminDashboard() {
           { route: '/admin/events', icon: 'calendar', label: 'Events', sub: `${stats?.totalEvents || 0} total, ${stats?.publishedEvents || 0} published` },
           { route: '/admin/sources', icon: 'antenna.radiowaves.left.and.right', label: 'Sources', sub: 'Event sources and discovery feeds' },
           { route: '/admin/organizers', icon: 'building.2.fill', label: 'Organizers', sub: `${stats?.totalOrganizers || 0} total, ${stats?.verifiedOrganizers || 0} verified` },
+          { route: '/admin/spaces', icon: 'location.fill', label: 'Spaces', sub: `${stats?.totalLocations || 0} venue profiles` },
           { route: '/admin/locations', icon: 'map.fill', label: 'Locations', sub: `${stats?.totalLocations || 0} venues` },
           { route: '/admin/users', icon: 'person.fill', label: 'Users', sub: `${stats?.totalUsers || 0} registered` },
           { route: '/admin/categories', icon: 'tag.fill', label: 'Categories', sub: 'Event categories and tags' },
