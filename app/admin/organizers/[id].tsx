@@ -11,12 +11,13 @@ import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModa
 
 const formFields: FormField[] = [
   { key: 'organization_name', label: 'Organization Name', type: 'text', required: true },
+  { key: 'description', label: 'Description', type: 'textarea' },
+  { key: 'logo_url', label: 'Logo Image', type: 'image', imageBucket: 'organizer-images', imageFolder: 'logos' },
   { key: 'email', label: 'Email', type: 'text' },
   { key: 'phone', label: 'Phone', type: 'text' },
   { key: 'instagram_handle', label: 'Instagram Handle', type: 'text' },
   { key: 'website_url', label: 'Website URL', type: 'text' },
   { key: 'address', label: 'Address', type: 'text' },
-  { key: 'logo_url', label: 'Logo URL', type: 'text' },
   { key: 'is_verified', label: 'Verified', type: 'boolean' },
 ];
 
@@ -60,6 +61,7 @@ export default function OrganizerDetailScreen() {
           title: 'Organization',
           fields: [
             { label: 'Name', value: item.organization_name || '-' },
+            { label: 'Description', value: item.description || '-' },
             { label: 'Email', value: item.email || '-' },
             { label: 'Phone', value: item.phone || '-' },
             { label: 'Instagram', value: item.instagram_handle || '-' },
@@ -109,6 +111,7 @@ export default function OrganizerDetailScreen() {
         isLoading={isLoading}
         onEdit={() => setModalVisible(true)}
         onDelete={handleDelete}
+        actions={item ? [{ label: 'View Public Profile', icon: 'eye', onPress: () => router.push(`/organizer/${id}`) }] : undefined}
       />
       <AdminFormModal
         visible={modalVisible}
