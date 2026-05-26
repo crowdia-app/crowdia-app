@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  Image,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +32,8 @@ import {
   submitVoiceRequest,
   type VoiceRequest,
 } from '@/services/voices';
+import { updateOrganizerProfile } from '@/services/organizers';
+import { pickAndUploadImage } from '@/services/admin-image-upload';
 
 const numberFormatter = new Intl.NumberFormat();
 
@@ -54,6 +58,17 @@ export default function ProfileScreen() {
   const [voiceInstagram, setVoiceInstagram] = useState('');
   const [voiceReason, setVoiceReason] = useState('');
   const [isSubmittingVoiceRequest, setIsSubmittingVoiceRequest] = useState(false);
+
+  // Organizer profile edit state
+  const [showOrgEditModal, setShowOrgEditModal] = useState(false);
+  const [editOrgName, setEditOrgName] = useState('');
+  const [editOrgAddress, setEditOrgAddress] = useState('');
+  const [editOrgInstagram, setEditOrgInstagram] = useState('');
+  const [editOrgWebsite, setEditOrgWebsite] = useState('');
+  const [editOrgPhone, setEditOrgPhone] = useState('');
+  const [editOrgLogoUrl, setEditOrgLogoUrl] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isSavingOrgProfile, setIsSavingOrgProfile] = useState(false);
 
   // Reload saved events every time this tab is focused (same pattern as saved.tsx)
   useFocusEffect(
@@ -129,6 +144,54 @@ export default function ProfileScreen() {
       }
     } finally {
       setIsSubmittingVoiceRequest(false);
+    }
+  };
+
+  const openOrgEditModal = () => {
+    if (!organizerProfile) return;
+    setEditOrgName(organizerProfile.organization_name ?? '');
+    setEditOrgAddress(organizerProfile.address ?? '');
+    setEditOrgInstagram(organizerProfile.instagram_handle ?? '');
+    setEditOrgWebsite(organizerProfile.website_url ?? '');
+    setEditOrgPhone(organizerProfile.phone ?? '');
+    setEditOrgLogoUrl(organizerProfile.logo_url ?? null);
+    setShowOrgEditModal(true);
+  };
+
+  const handlePickOrgLogo = async () => {
+    setIsUploadingLogo(true);
+    try {
+      const url = await pickAndUploadImage('organizer-images', 'logos');
+      if (url) setEditOrgLogoUrl(url);
+    } catch (err: any) {
+      Alert.alert('Upload failed', err?.message || 'Could not upload image');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleSaveOrgProfile = async () => {
+    if (!organizerProfile) return;
+    if (!editOrgName.trim()) {
+      Alert.alert('Error', 'Organization name is required');
+      return;
+    }
+    setIsSavingOrgProfile(true);
+    try {
+      await updateOrganizerProfile(organizerProfile.id, {
+        organization_name: editOrgName.trim(),
+        logo_url: editOrgLogoUrl,
+        address: editOrgAddress.trim() || null,
+        instagram_handle: editOrgInstagram.trim() || null,
+        website_url: editOrgWebsite.trim() || null,
+        phone: editOrgPhone.trim() || null,
+      });
+      await useAuthStore.getState().refreshProfile();
+      setShowOrgEditModal(false);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to save profile');
+    } finally {
+      setIsSavingOrgProfile(false);
     }
   };
 
@@ -316,21 +379,39 @@ export default function ProfileScreen() {
         {/* Organization Section */}
         {organizerProfile ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-              ORGANIZATION
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={[styles.sectionTitle, { color: colors.textMuted, marginBottom: 0 }]}>
+                ORGANIZATION
+              </Text>
+              <TouchableOpacity onPress={openOrgEditModal}>
+                <Text style={{ color: Magenta[500], fontSize: 13, fontWeight: '600' }}>Edit Profile</Text>
+              </TouchableOpacity>
+            </View>
             <View style={[styles.card, { backgroundColor: colors.card }]}>
-              <View style={styles.cardRow}>
-                <Ionicons name="business-outline" size={20} color={colors.textSecondary} />
-                <View style={styles.cardRowContent}>
-                  <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
-                    Name
-                  </Text>
-                  <Text style={[styles.cardRowValue, { color: colors.text }]}>
-                    {organizerProfile.organization_name}
-                  </Text>
+              {organizerProfile.logo_url ? (
+                <View style={[styles.cardRow, { paddingVertical: 12 }]}>
+                  <Image
+                    source={{ uri: organizerProfile.logo_url }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                  <View style={styles.cardRowContent}>
+                    <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>Logo</Text>
+                    <Text style={[styles.cardRowValue, { color: colors.text }]}>{organizerProfile.organization_name}</Text>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.cardRow}>
+                  <Ionicons name="business-outline" size={20} color={colors.textSecondary} />
+                  <View style={styles.cardRowContent}>
+                    <Text style={[styles.cardRowLabel, { color: colors.textSecondary }]}>
+                      Name
+                    </Text>
+                    <Text style={[styles.cardRowValue, { color: colors.text }]}>
+                      {organizerProfile.organization_name}
+                    </Text>
+                  </View>
+                </View>
+              )}
               <View style={[styles.cardDivider, { backgroundColor: colors.divider }]} />
               <View style={styles.cardRow}>
                 <Ionicons
@@ -926,6 +1007,130 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Edit Organizer Profile Modal */}
+      <Modal
+        visible={showOrgEditModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowOrgEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <ScrollView
+            style={{ width: '100%' }}
+            contentContainerStyle={{ alignItems: 'center', paddingVertical: 20 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={[styles.modalContent, { backgroundColor: colors.card, width: '90%' }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Organization Profile</Text>
+
+              {/* Logo picker */}
+              <TouchableOpacity
+                onPress={handlePickOrgLogo}
+                disabled={isUploadingLogo}
+                style={{ alignItems: 'center', marginBottom: 16 }}
+              >
+                {editOrgLogoUrl ? (
+                  <Image
+                    source={{ uri: editOrgLogoUrl }}
+                    style={{ width: 80, height: 80, borderRadius: 40, marginBottom: 8 }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 40,
+                      backgroundColor: colors.background,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Ionicons name="camera-outline" size={32} color={colors.textMuted} />
+                  </View>
+                )}
+                {isUploadingLogo ? (
+                  <ActivityIndicator size="small" color={Magenta[500]} />
+                ) : (
+                  <Text style={{ color: Magenta[500], fontSize: 13 }}>
+                    {editOrgLogoUrl ? 'Change Logo' : 'Upload Logo'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Organization Name *</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.divider }]}
+                value={editOrgName}
+                onChangeText={setEditOrgName}
+                placeholder="Organization name"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Address</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.divider }]}
+                value={editOrgAddress}
+                onChangeText={setEditOrgAddress}
+                placeholder="Address (optional)"
+                placeholderTextColor={colors.textMuted}
+              />
+
+              <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Instagram</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.divider }]}
+                value={editOrgInstagram}
+                onChangeText={setEditOrgInstagram}
+                placeholder="@handle"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+              />
+
+              <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Website</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.divider }]}
+                value={editOrgWebsite}
+                onChangeText={setEditOrgWebsite}
+                placeholder="https://yourwebsite.com"
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+
+              <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>Phone</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.divider }]}
+                value={editOrgPhone}
+                onChangeText={setEditOrgPhone}
+                placeholder="+39 ..."
+                placeholderTextColor={colors.textMuted}
+                keyboardType="phone-pad"
+              />
+
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={[styles.modalBtn, { backgroundColor: colors.background }]}
+                  onPress={() => setShowOrgEditModal(false)}
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalBtn, { backgroundColor: Magenta[500] }]}
+                  onPress={handleSaveOrgProfile}
+                  disabled={isSavingOrgProfile || isUploadingLogo}
+                >
+                  {isSavingOrgProfile ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={[styles.modalBtnText, { color: '#fff' }]}>Save</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>

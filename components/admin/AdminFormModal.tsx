@@ -13,17 +13,21 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { pickAndUploadImage } from '@/services/admin-image-upload';
 
 export interface FormField {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'datetime';
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea' | 'datetime' | 'image';
   required?: boolean;
   placeholder?: string;
   options?: { label: string; value: string | number }[];
+  imageBucket?: string;
+  imageFolder?: string;
 }
 
 interface Props {
@@ -43,6 +47,7 @@ export function AdminFormModal({ visible, title, fields, initialValues, onSubmit
   const [isSaving, setIsSaving] = useState(false);
   const [expandedSelect, setExpandedSelect] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -186,6 +191,53 @@ export function AdminFormModal({ visible, title, fields, initialValues, onSubmit
             />
           </View>
         );
+
+      case 'image': {
+        const currentUrl = values[field.key];
+        const isUploading = uploadingField === field.key;
+        const handlePickImage = async () => {
+          setUploadingField(field.key);
+          try {
+            const url = await pickAndUploadImage(
+              field.imageBucket ?? 'organizer-images',
+              field.imageFolder ?? 'uploads'
+            );
+            if (url) setValue(field.key, url);
+          } catch (e: any) {
+            Alert.alert('Upload Failed', e?.message || 'Could not upload image');
+          } finally {
+            setUploadingField(null);
+          }
+        };
+        return (
+          <View>
+            <Text style={[styles.fieldLabel, { color: colors.subtext }]}>{field.label}</Text>
+            {currentUrl ? (
+              <Image
+                source={{ uri: currentUrl }}
+                style={styles.imagePreview}
+                contentFit="cover"
+              />
+            ) : null}
+            <TouchableOpacity
+              style={[styles.imagePickerButton, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+              onPress={handlePickImage}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <ActivityIndicator size="small" color={Colors.magenta[500]} />
+              ) : (
+                <>
+                  <IconSymbol name="photo" size={16} color={Colors.magenta[500]} />
+                  <Text style={[styles.imagePickerText, { color: Colors.magenta[500] }]}>
+                    {currentUrl ? 'Change Image' : 'Upload Image'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+      }
 
       default:
         return (
@@ -355,4 +407,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteConfirmBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: '600' },
+  imagePreview: {
+    width: '100%',
+    height: 160,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  imagePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+  },
+  imagePickerText: { fontSize: Typography.sm, fontWeight: '500' },
 });

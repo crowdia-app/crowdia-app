@@ -1,6 +1,27 @@
 import { supabase } from '@/lib/supabase';
 import type { Organizer, EventWithStats } from '@/types/database';
 
+export type OrganizerProfileUpdate = {
+  organization_name?: string;
+  logo_url?: string | null;
+  address?: string | null;
+  instagram_handle?: string | null;
+  website_url?: string | null;
+  phone?: string | null;
+};
+
+export async function updateOrganizerProfile(
+  organizerId: string,
+  updates: OrganizerProfileUpdate
+): Promise<void> {
+  const { error } = await supabase
+    .from('organizers')
+    .update(updates)
+    .eq('id', organizerId);
+
+  if (error) throw error;
+}
+
 export async function fetchOrganizerById(id: string): Promise<Organizer | null> {
   const { data, error } = await supabase
     .from('organizers')
