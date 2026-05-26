@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Stack } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/stores/authStore';
+import { supabase } from '@/lib/supabase';
 import {
   fetchEntityList,
   createEntity,
@@ -257,6 +258,21 @@ export default function SourcesScreen() {
     if (editItem) {
       await updateEntity('event_sources', editItem.id, values);
     } else {
+      if (values.organizer_id && values.type && !values.is_aggregator) {
+        const { data: existing } = await supabase
+          .from('event_sources')
+          .select('id, url')
+          .eq('organizer_id', values.organizer_id)
+          .eq('type', values.type)
+          .maybeSingle();
+        if (existing) {
+          Alert.alert(
+            'Duplicate Source',
+            `This organizer already has a ${values.type} source (${existing.url}). Update the existing entry instead.`
+          );
+          return;
+        }
+      }
       await createEntity('event_sources', values);
     }
     loadData();
