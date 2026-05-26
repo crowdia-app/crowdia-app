@@ -24,6 +24,7 @@ import { fetchEventById, fetchRelatedEvents } from '@/services/events';
 import { fetchOrganizerById } from '@/services/organizers';
 import { getVoicesByEventId, type VoiceAttendee } from '@/services/voices';
 import { trackAffiliateClick } from '@/services/affiliate';
+import { trackEvent } from '@/utils/analytics';
 import { supabase } from '@/lib/supabase';
 import { Colors, Spacing, BorderRadius, Typography, Magenta, Green, Blue } from '@/constants/theme';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
@@ -121,6 +122,10 @@ export default function EventDetailScreen() {
     queryFn: () => fetchEventById(id!),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (event?.id) trackEvent('event_view', { event_id: event.id });
+  }, [event?.id]);
 
   // Fetch voices attending this event (only when there are voices)
   const { data: voices } = useQuery({

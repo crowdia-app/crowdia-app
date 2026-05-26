@@ -10,6 +10,7 @@ import { GoogleIcon } from '@/components/ui/google-icon';
 import { AppleIcon } from '@/components/ui/apple-icon';
 import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/hooks/useTranslation';
+import { trackEvent } from '@/utils/analytics';
 
 // On web, wrap form fields in a <form> so browsers recognize it for autofill
 function FormWrapper({ children, onSubmit }: { children: React.ReactNode; onSubmit: () => void }) {
@@ -100,6 +101,7 @@ export default function SignupScreen() {
       // instead of routing to onboarding where the profile upsert would fail.
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        trackEvent('signup_complete');
         router.replace('/onboarding/user');
       } else {
         setPendingEmail(email);

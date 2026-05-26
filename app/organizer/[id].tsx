@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import {
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
+import { trackEvent } from '@/utils/analytics';
 
 const HERO_HEIGHT = 280;
 type Tab = 'upcoming' | 'archive';
@@ -55,6 +56,10 @@ export default function OrganizerProfileScreen() {
     queryFn: () => fetchOrganizerById(id!),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (organizer?.id) trackEvent('organizer_profile_view', { organizer_id: organizer.id });
+  }, [organizer?.id]);
 
   const { data: upcomingEvents = [], isLoading: isLoadingUpcoming } = useQuery({
     queryKey: ['organizer-events', id],
