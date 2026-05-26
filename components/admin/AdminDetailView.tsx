@@ -26,9 +26,10 @@ interface Props {
   onEdit?: () => void;
   onDelete?: () => void;
   actions?: { label: string; icon?: string; color?: string; onPress: () => void }[];
+  footer?: React.ReactNode;
 }
 
-export function AdminDetailView({ title, subtitle, sections, isLoading, onEdit, onDelete, actions }: Props) {
+export function AdminDetailView({ title, subtitle, sections, isLoading, onEdit, onDelete, actions, footer }: Props) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
@@ -127,6 +128,7 @@ export function AdminDetailView({ title, subtitle, sections, isLoading, onEdit, 
         </View>
       ))}
 
+      {footer}
       <View style={{ height: 40 }} />
     </ScrollView>
   );

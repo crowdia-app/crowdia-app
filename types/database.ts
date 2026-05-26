@@ -805,6 +805,48 @@ export type Database = {
           },
         ]
       }
+      organizer_team_members: {
+        Row: {
+          id: string
+          organizer_id: string
+          user_id: string
+          role: string
+          granted_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organizer_id: string
+          user_id: string
+          role?: string
+          granted_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organizer_id?: string
+          user_id?: string
+          role?: string
+          granted_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organizer_team_members_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "organizers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizer_team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizers: {
         Row: {
           address: string | null
@@ -1019,6 +1061,7 @@ export type Database = {
           email_confirmed_points_awarded: boolean | null
           id: string
           is_admin: boolean
+          is_super_admin: boolean
           is_premium: boolean
           is_voice: boolean
           premium_expires_at: string | null
@@ -1038,6 +1081,7 @@ export type Database = {
           email_confirmed_points_awarded?: boolean | null
           id: string
           is_admin?: boolean
+          is_super_admin?: boolean
           is_premium?: boolean
           is_voice?: boolean
           premium_expires_at?: string | null
@@ -1057,6 +1101,7 @@ export type Database = {
           email_confirmed_points_awarded?: boolean | null
           id?: string
           is_admin?: boolean
+          is_super_admin?: boolean
           is_premium?: boolean
           is_voice?: boolean
           premium_expires_at?: string | null

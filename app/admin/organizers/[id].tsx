@@ -1,13 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Alert } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, Alert, TouchableOpacity, TextInput, ActivityIndicator, FlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Stack } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+import { Colors, Magenta } from '@/constants/theme';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchEntityById, updateEntity, deleteEntity } from '@/services/admin-entities';
 import { AdminDetailView, BooleanBadge, type DetailSection } from '@/components/admin/AdminDetailView';
 import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModal';
+import {
+  fetchOrganizerTeamMembers,
+  addOrganizerTeamMember,
+  removeOrganizerTeamMember,
+  searchUsersByUsername,
+  type OrganizerTeamMember,
+} from '@/services/admin-rbac';
 
 const formFields: FormField[] = [
   { key: 'organization_name', label: 'Organization Name', type: 'text', required: true },
@@ -32,6 +39,15 @@ export default function OrganizerDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
 
+  const [teamMembers, setTeamMembers] = useState<OrganizerTeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [userQuery, setUserQuery] = useState('');
+  const [userResults, setUserResults] = useState<{ id: string; username: string | null; display_name: string | null }[]>([]);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [addingRole, setAddingRole] = useState<'manager' | 'member'>('manager');
+
+  const isSuperAdmin = !!(userProfile as any)?.is_super_admin;
+
   const loadData = async () => {
     setIsLoading(true);
     const result = await fetchEntityById('organizers', id!);
@@ -39,9 +55,61 @@ export default function OrganizerDetailScreen() {
     setIsLoading(false);
   };
 
-  useEffect(() => {
-    if (id) loadData();
+  const loadTeamMembers = useCallback(async () => {
+    if (!id) return;
+    setTeamLoading(true);
+    try {
+      const members = await fetchOrganizerTeamMembers(id);
+      setTeamMembers(members);
+    } catch {
+      // ignore
+    } finally {
+      setTeamLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      loadData();
+      if (userProfile?.is_admin) loadTeamMembers();
+    }
+  }, [id]);
+
+  const handleUserSearch = async (q: string) => {
+    setUserQuery(q);
+    if (q.length < 2) {
+      setUserResults([]);
+      return;
+    }
+    setUserSearchLoading(true);
+    try {
+      const results = await searchUsersByUsername(q);
+      setUserResults(results);
+    } finally {
+      setUserSearchLoading(false);
+    }
+  };
+
+  const handleAddMember = async (userId: string) => {
+    if (!id || !userProfile?.id) return;
+    try {
+      await addOrganizerTeamMember(id, userId, addingRole, userProfile.id);
+      setUserQuery('');
+      setUserResults([]);
+      loadTeamMembers();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to add member');
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    try {
+      await removeOrganizerTeamMember(memberId);
+      loadTeamMembers();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to remove member');
+    }
+  };
 
   if (!userProfile?.is_admin) {
     return (
@@ -112,6 +180,23 @@ export default function OrganizerDetailScreen() {
         onEdit={() => setModalVisible(true)}
         onDelete={handleDelete}
         actions={item ? [{ label: 'View Public Profile', icon: 'eye', onPress: () => router.push(`/organizer/${id}`) }] : undefined}
+        footer={
+          isSuperAdmin && item ? (
+            <TeamMembersPanel
+              members={teamMembers}
+              loading={teamLoading}
+              userQuery={userQuery}
+              userResults={userResults}
+              userSearchLoading={userSearchLoading}
+              addingRole={addingRole}
+              colors={colors}
+              onSearch={handleUserSearch}
+              onSetRole={setAddingRole}
+              onAdd={handleAddMember}
+              onRemove={handleRemoveMember}
+            />
+          ) : undefined
+        }
       />
       <AdminFormModal
         visible={modalVisible}
@@ -122,5 +207,132 @@ export default function OrganizerDetailScreen() {
         onClose={() => setModalVisible(false)}
       />
     </>
+  );
+}
+
+interface TeamMembersPanelProps {
+  members: OrganizerTeamMember[];
+  loading: boolean;
+  userQuery: string;
+  userResults: { id: string; username: string | null; display_name: string | null }[];
+  userSearchLoading: boolean;
+  addingRole: 'manager' | 'member';
+  colors: any;
+  onSearch: (q: string) => void;
+  onSetRole: (role: 'manager' | 'member') => void;
+  onAdd: (userId: string) => void;
+  onRemove: (memberId: string) => void;
+}
+
+function TeamMembersPanel({
+  members, loading, userQuery, userResults, userSearchLoading,
+  addingRole, colors, onSearch, onSetRole, onAdd, onRemove,
+}: TeamMembersPanelProps) {
+  return (
+    <View style={{ marginTop: 24, paddingHorizontal: 16 }}>
+      <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 12 }}>
+        Team Members
+      </Text>
+
+      {loading ? (
+        <ActivityIndicator color={Magenta[500]} />
+      ) : members.length === 0 ? (
+        <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+          No team members yet.
+        </Text>
+      ) : (
+        members.map((m) => (
+          <View
+            key={m.id}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: colors.card,
+              borderRadius: 8,
+              padding: 10,
+              marginBottom: 8,
+            }}
+          >
+            <View>
+              <Text style={{ color: colors.text, fontWeight: '600', fontSize: 13 }}>
+                {(m.user as any)?.username || (m.user as any)?.display_name || m.user_id}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{m.role}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => onRemove(m.id)}
+              style={{
+                backgroundColor: '#e53e3e22',
+                borderRadius: 6,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+              }}
+            >
+              <Text style={{ color: '#e53e3e', fontSize: 12 }}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+
+      <Text style={{ color: colors.text, fontWeight: '600', fontSize: 13, marginTop: 8, marginBottom: 6 }}>
+        Add member
+      </Text>
+
+      <View style={{ flexDirection: 'row', marginBottom: 8, gap: 8 }}>
+        {(['manager', 'member'] as const).map((r) => (
+          <TouchableOpacity
+            key={r}
+            onPress={() => onSetRole(r)}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 6,
+              backgroundColor: addingRole === r ? Magenta[500] : colors.card,
+            }}
+          >
+            <Text style={{ color: addingRole === r ? '#fff' : colors.textSecondary, fontSize: 12 }}>
+              {r}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <TextInput
+        placeholder="Search by username..."
+        placeholderTextColor={colors.textSecondary}
+        value={userQuery}
+        onChangeText={onSearch}
+        style={{
+          backgroundColor: colors.card,
+          color: colors.text,
+          borderRadius: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          fontSize: 13,
+          marginBottom: 4,
+        }}
+      />
+
+      {userSearchLoading && <ActivityIndicator color={Magenta[500]} size="small" style={{ marginVertical: 4 }} />}
+
+      {userResults.map((u) => (
+        <TouchableOpacity
+          key={u.id}
+          onPress={() => onAdd(u.id)}
+          style={{
+            backgroundColor: colors.card,
+            borderRadius: 8,
+            padding: 10,
+            marginBottom: 4,
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 13 }}>
+            {u.username || u.display_name || u.id}
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 11 }}>Tap to add as {addingRole}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
   );
 }
