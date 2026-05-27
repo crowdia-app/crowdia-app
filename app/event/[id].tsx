@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   Pressable,
   useColorScheme,
   Linking,
@@ -20,7 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { fetchEventById, fetchRelatedEvents } from '@/services/events';
+import { fetchEventById, fetchRelatedEvents, getSimilarEvents } from '@/services/events';
 import { fetchOrganizerById } from '@/services/organizers';
 import { getVoicesByEventId, type VoiceAttendee } from '@/services/voices';
 import { trackAffiliateClick } from '@/services/affiliate';
@@ -90,6 +91,39 @@ function displayUrl(url: string): string {
   }
 }
 
+function SimilarEventCard({ event, onPress }: { event: { id: string | null; title: string | null; cover_image_url: string | null; category_slug: string | null; event_start_time: string | null; location_name: string | null }; onPress: () => void }) {
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
+  const [imageError, setImageError] = useState(false);
+  const imageUrl = getProxiedImageUrl(event.cover_image_url);
+  const hasValidImage = !!imageUrl && !imageError;
+  const simDate = event.event_start_time ? formatFullDate(event.event_start_time) : null;
+
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.similarCard, { backgroundColor: colors.card }, pressed && { opacity: 0.8 }]}
+      onPress={onPress}
+    >
+      {hasValidImage ? (
+        <Image source={{ uri: imageUrl }} style={styles.similarCardImage} contentFit="cover" transition={200} onError={() => setImageError(true)} />
+      ) : (
+        <CategoryImagePlaceholder categorySlug={event.category_slug} style={styles.similarCardImage} iconSize={28} />
+      )}
+      <View style={styles.similarCardContent}>
+        <Text style={[styles.similarCardTitle, { color: colors.text }]} numberOfLines={2}>{event.title}</Text>
+        {simDate ? (
+          <Text style={[styles.similarCardMeta, { color: colors.textSecondary }]}>
+            {simDate.weekday.slice(0, 3)} {simDate.day} {simDate.month}
+          </Text>
+        ) : null}
+        {event.location_name ? (
+          <Text style={[styles.similarCardMeta, { color: colors.textMuted }]} numberOfLines={1}>{event.location_name}</Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 // Header button component extracted outside render to avoid remount cycles
 function HeaderButton({ onPress, icon, size = 24 }: { onPress: () => void; icon: string; size?: number }) {
   return (
@@ -141,6 +175,14 @@ export default function EventDetailScreen() {
     queryFn: () => fetchRelatedEvents(event!.title!, event!.organizer_id ?? null, event!.location_id ?? null, id!),
     enabled: !!event?.title && (event?.series_count ?? 0) > 0,
     staleTime: 5 * 60_000,
+  });
+
+  // Similar events (Lumio "Love this Vibe?" — fires after main event loads, non-blocking)
+  const { data: similarEvents, isLoading: isSimilarLoading } = useQuery({
+    queryKey: ['event-similar', id],
+    queryFn: () => getSimilarEvents(id!, 3),
+    enabled: !!event?.id,
+    staleTime: 10 * 60_000,
   });
 
   // Check if the current user has already checked in to this event
@@ -678,6 +720,36 @@ export default function EventDetailScreen() {
             </Pressable>
           ) : null}
 
+          {/* Love this Vibe? — Lumio similar events carousel */}
+          {isSimilarLoading ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Love this Vibe? 💡</Text>
+              <View style={styles.similarSkeletonRow}>
+                {[0, 1, 2].map((i) => (
+                  <View key={i} style={[styles.similarCardSkeleton, { backgroundColor: colors.card }]} />
+                ))}
+              </View>
+            </View>
+          ) : similarEvents && similarEvents.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Love this Vibe? 💡</Text>
+              <FlatList
+                horizontal
+                data={similarEvents}
+                keyExtractor={(item) => item.id!}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: Spacing.md }}
+                scrollEnabled={similarEvents.length > 1}
+                renderItem={({ item: similar }) => (
+                  <SimilarEventCard
+                    event={similar}
+                    onPress={() => router.push(`/event/${similar.id}`)}
+                  />
+                )}
+              />
+            </View>
+          ) : null}
+
           {/* Source */}
           {event.source ? (
             <View style={styles.sourceContainer}>
@@ -1082,5 +1154,37 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.7,
+  },
+  similarCard: {
+    width: 160,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  similarCardImage: {
+    width: '100%',
+    height: 100,
+  },
+  similarCardContent: {
+    padding: Spacing.sm,
+    gap: 2,
+  },
+  similarCardTitle: {
+    fontSize: Typography.sm,
+    fontWeight: '600',
+    lineHeight: Typography.sm * 1.3,
+    marginBottom: 2,
+  },
+  similarCardMeta: {
+    fontSize: Typography.xs,
+  },
+  similarSkeletonRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  similarCardSkeleton: {
+    width: 160,
+    height: 150,
+    borderRadius: BorderRadius.lg,
+    opacity: 0.5,
   },
 });

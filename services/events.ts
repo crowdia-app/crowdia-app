@@ -306,3 +306,15 @@ export async function fetchRelatedEvents(
 
   return (data as EventWithStats[]) ?? [];
 }
+
+export async function getSimilarEvents(eventId: string, limit = 3): Promise<EventWithStats[]> {
+  const { data, error } = await supabase.rpc('similar_events', {
+    event_id: eventId,
+    limit_count: limit,
+  });
+  if (error) {
+    console.error('Error fetching similar events:', error);
+    return [];
+  }
+  return (data as EventWithStats[]) ?? [];
+}
