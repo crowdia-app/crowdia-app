@@ -61,6 +61,7 @@ const columns: Column[] = [
 
 const formFields: FormField[] = [
   { key: 'name', label: 'Space Name', type: 'text', required: true },
+  { key: 'image_url', label: 'Cover Image', type: 'image', imageBucket: 'space-images', imageFolder: 'covers' },
   { key: 'address', label: 'Address', type: 'text', required: true },
   { key: 'lat', label: 'Latitude', type: 'number', required: true },
   { key: 'lng', label: 'Longitude', type: 'number', required: true },

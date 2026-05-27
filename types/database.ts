@@ -671,6 +671,7 @@ export type Database = {
           created_at: string | null
           event_sources: Json | null
           id: string
+          image_url: string | null
           lat: number
           lng: number
           name: string
@@ -685,6 +686,7 @@ export type Database = {
           created_at?: string | null
           event_sources?: Json | null
           id?: string
+          image_url?: string | null
           lat: number
           lng: number
           name: string
@@ -699,6 +701,7 @@ export type Database = {
           created_at?: string | null
           event_sources?: Json | null
           id?: string
+          image_url?: string | null
           lat?: number
           lng?: number
           name?: string

@@ -146,8 +146,17 @@ export default function VenueProfileScreen() {
 
   const heroEl = (
     <View style={[styles.heroContainer, { height: HERO_HEIGHT + insets.top }]}>
+      {venue?.image_url ? (
+        <Image
+          source={{ uri: venue.image_url }}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+        />
+      ) : null}
       <LinearGradient
-        colors={['#080808', '#121212', '#1c1c1c', colors.background] as any}
+        colors={venue?.image_url
+          ? ['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.6)', colors.background] as any
+          : ['#080808', '#121212', '#1c1c1c', colors.background] as any}
         locations={[0, 0.35, 0.65, 1]}
         style={StyleSheet.absoluteFillObject}
       />
