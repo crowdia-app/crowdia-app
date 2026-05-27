@@ -17,6 +17,7 @@ import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlacehold
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
+import { VibeTagsRow } from '@/components/ui/VibeTagPill';
 
 interface EventCardProps {
   event: EventWithStats;
@@ -137,6 +138,9 @@ export const EventCard = memo(function EventCard({ event, onPress, onRequireLogi
             </Text>
           </View>
         ) : null}
+
+        {/* Lumio Vibe Tags */}
+        <VibeTagsRow tags={event.vibe_tags} />
 
         {/* Location and Category Row */}
         <View style={styles.metaRow}>

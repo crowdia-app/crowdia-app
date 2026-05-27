@@ -46,6 +46,7 @@ async function main() {
   const { runExtractionAgent } = await import("./extraction");
   const { runDiscoveryAgent } = await import("./discovery");
   const { generateMissingEmbeddings } = await import("./generate-embeddings");
+  const { generateMissingVibeTags } = await import("./generate-vibe-tags");
 
   // Parse command line arguments
   const args = process.argv.slice(2);
@@ -92,6 +93,9 @@ async function main() {
     if (agentType === "extraction" || agentType === "both") {
       console.log("\n--- Generating missing embeddings ---\n");
       await generateMissingEmbeddings();
+
+      console.log("\n--- Generating Lumio Vibe Tags ---\n");
+      await generateMissingVibeTags();
     }
 
     console.log("\n" + "=".repeat(50));

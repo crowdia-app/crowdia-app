@@ -570,6 +570,7 @@ export type Database = {
           source_metadata: Json | null
           title: string
           updated_at: string | null
+          vibe_tags: string[] | null
         }
         Insert: {
           category_id?: string | null
@@ -590,6 +591,7 @@ export type Database = {
           source_metadata?: Json | null
           title: string
           updated_at?: string | null
+          vibe_tags?: string[] | null
         }
         Update: {
           category_id?: string | null
@@ -610,6 +612,7 @@ export type Database = {
           source_metadata?: Json | null
           title?: string
           updated_at?: string | null
+          vibe_tags?: string[] | null
         }
         Relationships: [
           {
@@ -1273,6 +1276,7 @@ export type Database = {
           source: string | null
           title: string | null
           updated_at: string | null
+          vibe_tags: string[] | null
           voice_count: number | null
         }
         Relationships: [
