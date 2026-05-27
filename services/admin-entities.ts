@@ -135,6 +135,60 @@ export async function deleteEntity(table: string, id: string): Promise<void> {
   }
 }
 
+/**
+ * Upsert event_sources rows for an organizer's instagram_handle and website_url.
+ * Called after creating or updating an organizer so the extraction agent picks up
+ * the new org on the next run, even if the DB trigger hasn't been deployed.
+ */
+export async function syncOrganizerSources(
+  organizerId: string,
+  values: Record<string, any>
+): Promise<void> {
+  const rows: Array<{
+    url: string;
+    type: string;
+    organizer_id: string;
+    instagram_handle?: string;
+    is_aggregator: boolean;
+    enabled: boolean;
+    reliability_score: number;
+  }> = [];
+
+  if (values.instagram_handle && typeof values.instagram_handle === 'string' && values.instagram_handle.trim()) {
+    const handle = values.instagram_handle.trim().replace(/^@/, '');
+    rows.push({
+      url: `https://www.instagram.com/${handle}/`,
+      type: 'instagram',
+      organizer_id: organizerId,
+      instagram_handle: handle,
+      is_aggregator: false,
+      enabled: true,
+      reliability_score: 50,
+    });
+  }
+
+  if (values.website_url && typeof values.website_url === 'string' && values.website_url.trim()) {
+    rows.push({
+      url: values.website_url.trim(),
+      type: 'website',
+      organizer_id: organizerId,
+      is_aggregator: false,
+      enabled: true,
+      reliability_score: 50,
+    });
+  }
+
+  if (rows.length === 0) return;
+
+  const { error } = await supabase
+    .from('event_sources')
+    .upsert(rows, { onConflict: 'url' });
+
+  if (error) {
+    console.error('Failed to sync organizer event sources:', error);
+  }
+}
+
 // Helper to fetch options for select dropdowns (e.g., organizers, categories)
 export async function fetchSelectOptions(
   table: string,

@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors, Magenta } from '@/constants/theme';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchEntityById, updateEntity, deleteEntity } from '@/services/admin-entities';
+import { fetchEntityById, updateEntity, deleteEntity, syncOrganizerSources } from '@/services/admin-entities';
 import { AdminDetailView, BooleanBadge, type DetailSection } from '@/components/admin/AdminDetailView';
 import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModal';
 import {
@@ -157,6 +157,7 @@ export default function OrganizerDetailScreen() {
 
   const handleEdit = async (values: Record<string, any>) => {
     await updateEntity('organizers', id!, values);
+    await syncOrganizerSources(id!, values);
     setModalVisible(false);
     loadData();
   };

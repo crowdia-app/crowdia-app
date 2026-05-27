@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchEntityList, createEntity, updateEntity, deleteEntity } from '@/services/admin-entities';
+import { fetchEntityList, createEntity, updateEntity, deleteEntity, syncOrganizerSources } from '@/services/admin-entities';
 import { AdminDataTable, type Column, type FilterOption } from '@/components/admin/AdminDataTable';
 import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModal';
 import { BooleanBadge } from '@/components/admin/AdminDetailView';
@@ -150,8 +150,12 @@ export default function OrganizersScreen() {
   const handleSubmit = async (values: Record<string, any>) => {
     if (editItem) {
       await updateEntity('organizers', editItem.id, values);
+      await syncOrganizerSources(editItem.id, values);
     } else {
-      await createEntity('organizers', values);
+      const created = await createEntity<{ id: string }>('organizers', values);
+      if (created?.id) {
+        await syncOrganizerSources(created.id, values);
+      }
     }
     setEditItem(null);
     setModalVisible(false);
