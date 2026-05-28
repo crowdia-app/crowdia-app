@@ -17,6 +17,8 @@ import { FilterDrawer, ActiveFiltersRow } from '@/components/filters';
 import { EventsMap } from '@/components/maps';
 import { GlowingLogo } from '@/components/ui/glowing-logo';
 import { LoginPromptModal } from '@/components/ui/LoginPromptModal';
+import { AskLumioFab } from '@/components/ui/AskLumioFab';
+import { AskLumioModal } from '@/components/ui/AskLumioModal';
 import { Colors, Spacing, Typography, Magenta, BorderRadius } from '@/constants/theme';
 import { EventWithStats } from '@/types/database';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
@@ -41,6 +43,7 @@ export default function EventsFeedScreen() {
   const [filterVisible, setFilterVisible] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('map');
   const { visible: loginPromptVisible, dismiss: dismissLoginPrompt, show: showLoginPrompt } = useLoginPrompt();
+  const [lumioVisible, setLumioVisible] = useState(false);
 
   const { searchQuery, handleSearchChange } = useDebouncedSearch();
 
@@ -263,6 +266,10 @@ export default function EventsFeedScreen() {
 
       {/* Login prompt for unauthenticated users */}
       <LoginPromptModal visible={loginPromptVisible} onDismiss={dismissLoginPrompt} />
+
+      {/* Lumio AI assistant */}
+      <AskLumioFab onPress={() => setLumioVisible(true)} />
+      <AskLumioModal visible={lumioVisible} onClose={() => setLumioVisible(false)} />
     </View>
   );
 }
