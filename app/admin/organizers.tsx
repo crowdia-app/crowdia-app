@@ -51,8 +51,7 @@ const filters: FilterOption[] = [
 
 const formFields: FormField[] = [
   { key: 'organization_name', label: 'Organization Name', type: 'text', required: true },
-  { key: 'description', label: 'Description', type: 'textarea' },
-  { key: 'logo_url', label: 'Logo Image', type: 'image', imageBucket: 'organizer-images', imageFolder: 'logos' },
+  { key: 'logo_url', label: 'Logo URL', type: 'text' },
   { key: 'email', label: 'Email', type: 'text' },
   { key: 'phone', label: 'Phone', type: 'text' },
   { key: 'instagram_handle', label: 'Instagram Handle', type: 'text' },
@@ -152,7 +151,11 @@ export default function OrganizersScreen() {
       await updateEntity('organizers', editItem.id, values);
       await syncOrganizerSources(editItem.id, values);
     } else {
-      const created = await createEntity<{ id: string }>('organizers', values);
+      // Strip undefined/null/empty fields so optional columns absent in prod don't block inserts
+      const payload = Object.fromEntries(
+        Object.entries(values).filter(([, v]) => v !== undefined && v !== null && v !== '')
+      );
+      const created = await createEntity<{ id: string }>('organizers', payload);
       if (created?.id) {
         await syncOrganizerSources(created.id, values);
       }
