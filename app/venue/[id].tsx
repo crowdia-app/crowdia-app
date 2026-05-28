@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   Pressable,
   useColorScheme,
   Linking,
@@ -17,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { fetchVenueById, fetchVenueEvents } from '@/services/venues';
+import { fetchVenueById, fetchVenueEvents, fetchVenueCollaborators } from '@/services/venues';
 import { fetchOrganizerById } from '@/services/organizers';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
@@ -95,6 +96,20 @@ export default function VenueProfileScreen() {
     queryFn: () => fetchOrganizerById(venue!.operator_org_id!),
     enabled: !!venue?.operator_org_id,
   });
+
+  const { data: collaborators = [] } = useQuery({
+    queryKey: ['venue-collaborators', id],
+    queryFn: () => fetchVenueCollaborators(id!),
+    enabled: !!id,
+  });
+
+  const organizerMap = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const c of collaborators) {
+      map[c.organizer.id] = c.organizer.organization_name ?? '';
+    }
+    return map;
+  }, [collaborators]);
 
   const isVerified = !!venue?.operator_org_id;
 
@@ -359,6 +374,44 @@ export default function VenueProfileScreen() {
           />
         </View>
 
+        {/* Frequent Collaborators */}
+        {collaborators.length > 1 && (
+          <View style={styles.collaboratorsSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Collaboratori frequenti</Text>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={collaborators}
+              keyExtractor={(item) => item.organizer.id}
+              contentContainerStyle={styles.collaboratorsList}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={({ pressed }) => [styles.collaboratorItem, pressed && styles.pressed]}
+                  onPress={() => router.push(`/organizer/${item.organizer.id}`)}
+                >
+                  <View style={[styles.collaboratorAvatar, { backgroundColor: colors.card }]}>
+                    {item.organizer.logo_url ? (
+                      <Image
+                        source={{ uri: item.organizer.logo_url }}
+                        style={styles.collaboratorAvatarImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Ionicons name="business-outline" size={22} color={colors.textSecondary} />
+                    )}
+                  </View>
+                  <Text
+                    style={[styles.collaboratorName, { color: colors.textSecondary }]}
+                    numberOfLines={2}
+                  >
+                    {item.organizer.organization_name}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        )}
+
         {/* Upcoming Events */}
         <View style={styles.eventsSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Prossimi eventi</Text>
@@ -375,13 +428,35 @@ export default function VenueProfileScreen() {
               </Text>
             </View>
           ) : (
-            events.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                onPress={() => router.push(`/event/${event.id}`)}
-              />
-            ))
+            events.map((event) => {
+              const externalOrganizer =
+                event.organizer_id &&
+                event.organizer_id !== venue.operator_org_id &&
+                organizerMap[event.organizer_id];
+              return (
+                <View key={event.id}>
+                  {externalOrganizer ? (
+                    <Pressable
+                      style={[styles.organizerTag, { backgroundColor: colors.card }]}
+                      onPress={() => router.push(`/organizer/${event.organizer_id}`)}
+                    >
+                      <Ionicons name="person-circle-outline" size={13} color={colors.textMuted} />
+                      <Text style={[styles.organizerTagText, { color: colors.textSecondary }]}>
+                        {'Organizzato da '}
+                        <Text style={{ color: Magenta[500], fontWeight: '600' }}>
+                          {externalOrganizer}
+                        </Text>
+                      </Text>
+                      <Ionicons name="chevron-forward" size={11} color={colors.textMuted} />
+                    </Pressable>
+                  ) : null}
+                  <EventCard
+                    event={event}
+                    onPress={() => router.push(`/event/${event.id}`)}
+                  />
+                </View>
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -639,5 +714,50 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  collaboratorsSection: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  collaboratorsList: {
+    paddingTop: Spacing.sm,
+    gap: Spacing.md,
+  },
+  collaboratorItem: {
+    alignItems: 'center',
+    width: 72,
+  },
+  collaboratorAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  collaboratorAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  collaboratorName: {
+    fontSize: Typography.xxs,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  organizerTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    marginBottom: 2,
+  },
+  organizerTagText: {
+    fontSize: Typography.xs,
+    flex: 1,
   },
 });

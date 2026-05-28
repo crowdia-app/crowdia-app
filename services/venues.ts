@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Location, EventWithStats } from '@/types/database';
+import type { Location, EventWithStats, Organizer } from '@/types/database';
 
 export async function fetchVenueById(id: string): Promise<Location | null> {
   const { data, error } = await supabase
@@ -13,6 +13,43 @@ export async function fetchVenueById(id: string): Promise<Location | null> {
     return null;
   }
   return data;
+}
+
+export type VenueCollaborator = { organizer: Organizer; eventCount: number };
+
+export async function fetchVenueCollaborators(locationId: string, limit = 8): Promise<VenueCollaborator[]> {
+  const { data: events } = await supabase
+    .from('events_with_stats')
+    .select('organizer_id')
+    .eq('location_id', locationId)
+    .eq('is_published', true)
+    .not('organizer_id', 'is', null);
+
+  if (!events?.length) return [];
+
+  const counts: Record<string, number> = {};
+  for (const e of events) {
+    if (e.organizer_id) counts[e.organizer_id] = (counts[e.organizer_id] ?? 0) + 1;
+  }
+
+  const sorted = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit);
+  const ids = sorted.map(([id]) => id);
+
+  const { data: organizers } = await supabase
+    .from('organizers')
+    .select('*')
+    .in('id', ids);
+
+  if (!organizers) return [];
+
+  return sorted
+    .map(([id, count]) => {
+      const org = organizers.find((o) => o.id === id);
+      return org ? { organizer: org as Organizer, eventCount: count } : null;
+    })
+    .filter(Boolean) as VenueCollaborator[];
 }
 
 export async function fetchVenueEvents(locationId: string, limit = 20): Promise<EventWithStats[]> {
