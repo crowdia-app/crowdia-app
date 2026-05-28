@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
-  const { userProfile } = useAuthStore();
+  const { userProfile, isLoading: authLoading } = useAuthStore();
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +44,15 @@ export default function AdminDashboard() {
     else setIsLoading(false);
   }, [userProfile?.is_admin]);
 
-  // Redirect if not admin
+  // Show spinner while auth is still initializing so we don't flash "no permission"
+  if (authLoading) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={Colors.magenta[500]} />
+      </View>
+    );
+  }
+
   if (!userProfile?.is_admin) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -129,6 +137,7 @@ export default function AdminDashboard() {
           { route: '/admin/badges', icon: 'star.fill', label: 'Badges', sub: 'Achievement badges' },
           { route: '/admin/potential-sources', icon: 'magnifyingglass.circle.fill', label: 'Potential Sources', sub: 'Discovery queue' },
           { route: '/admin/organizer-requests', icon: 'person.badge.plus', label: 'Organizer Requests', sub: 'Review and approve organizer applications' },
+          { route: '/admin/voice-requests', icon: 'mic.fill', label: 'Voice Requests', sub: 'Review and approve voice applications' },
           { route: '/admin/agents', icon: 'cpu', label: 'AI Agents', sub: 'Agent runs and logs' },
         ].map((item) => (
           <TouchableOpacity

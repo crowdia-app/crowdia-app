@@ -152,3 +152,70 @@ export async function fetchVoiceInstagram(userId: string): Promise<string | null
   if (error) return null;
   return data?.instagram_handle ?? null;
 }
+
+export interface VoiceRequestWithUser extends VoiceRequest {
+  user?: {
+    username: string | null;
+    display_name: string | null;
+  };
+}
+
+/** Fetch all voice requests (admin only) */
+export async function fetchAllVoiceRequests(): Promise<VoiceRequestWithUser[]> {
+  const { data, error } = await supabase
+    .from('voice_requests')
+    .select('*, user:user_id(username, display_name)')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to fetch voice requests:', error);
+    return [];
+  }
+  return (data || []) as VoiceRequestWithUser[];
+}
+
+/** Approve a voice request: marks request approved + sets users.is_voice = true */
+export async function approveVoiceRequest(
+  requestId: string,
+  userId: string,
+  reviewerId: string
+): Promise<void> {
+  const { error: reqError } = await supabase
+    .from('voice_requests')
+    .update({
+      status: 'approved',
+      reviewed_by: reviewerId,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', requestId);
+
+  if (reqError) throw reqError;
+
+  const { error: userError } = await supabase
+    .from('users')
+    .update({ is_voice: true })
+    .eq('id', userId);
+
+  if (userError) throw userError;
+}
+
+/** Reject a voice request */
+export async function rejectVoiceRequest(
+  requestId: string,
+  reviewerId: string,
+  rejectionReason?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('voice_requests')
+    .update({
+      status: 'rejected',
+      reviewed_by: reviewerId,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: rejectionReason || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', requestId);
+
+  if (error) throw error;
+}
