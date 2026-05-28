@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   View,
   Text,
   StyleSheet,
@@ -26,6 +27,7 @@ import {
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
+import { VibeTagsRow } from '@/components/ui/VibeTagPill';
 import { trackEvent } from '@/utils/analytics';
 
 const HERO_HEIGHT = 280;
@@ -110,6 +112,36 @@ export default function OrganizerProfileScreen() {
       .slice(0, 6);
   }, [upcomingEvents, pastEvents]);
 
+  const vibeTagsAggregated = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of [...upcomingEvents, ...pastEvents]) {
+      if (!e.vibe_tags) continue;
+      for (const tag of e.vibe_tags) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([tag]) => tag);
+  }, [upcomingEvents, pastEvents]);
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!isLiveNow) {
+      pulseAnim.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.14, duration: 850, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 850, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isLiveNow, pulseAnim]);
+
   const hasLogo = !!organizer?.logo_url && !logoError;
   const isVerified = !!organizer?.is_verified;
 
@@ -144,22 +176,24 @@ export default function OrganizerProfileScreen() {
       </View>
       {organizer && (
         <View style={styles.avatarWrapper}>
-          <View style={[styles.haloRing, isLiveNow && styles.haloActive]}>
-            <View style={[styles.avatarInner, { backgroundColor: colors.card }]}>
-              {hasLogo ? (
-                <Image
-                  source={{ uri: organizer.logo_url! }}
-                  style={styles.avatarImage}
-                  contentFit="contain"
-                  onError={() => setLogoError(true)}
-                />
-              ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: Magenta[500] + '1a' }]}>
-                  <Ionicons name="business-outline" size={36} color={Magenta[500]} />
-                </View>
-              )}
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <View style={[styles.haloRing, isLiveNow && styles.haloActive]}>
+              <View style={[styles.avatarInner, { backgroundColor: colors.card }]}>
+                {hasLogo ? (
+                  <Image
+                    source={{ uri: organizer.logo_url! }}
+                    style={styles.avatarImage}
+                    contentFit="contain"
+                    onError={() => setLogoError(true)}
+                  />
+                ) : (
+                  <View style={[styles.avatarPlaceholder, { backgroundColor: Magenta[500] + '1a' }]}>
+                    <Ionicons name="business-outline" size={36} color={Magenta[500]} />
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
+          </Animated.View>
           {isLiveNow && (
             <View style={styles.livePill}>
               <View style={styles.liveDot} />
@@ -230,6 +264,13 @@ export default function OrganizerProfileScreen() {
               <Text style={{ color: colors.text, fontWeight: '600' }}>{organizer.organization_name}</Text>
               {'? Attiva la gestione di questo profilo con i suoi eventi e sblocca gli analytics.'}
             </Text>
+          </View>
+        )}
+
+        {/* Vibe Tags */}
+        {vibeTagsAggregated.length > 0 && (
+          <View style={styles.vibeTagsSection}>
+            <VibeTagsRow tags={vibeTagsAggregated} maxTags={5} />
           </View>
         )}
 
@@ -521,6 +562,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     flex: 1,
     lineHeight: 20,
+  },
+  vibeTagsSection: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    alignItems: 'center',
   },
   socialRow: {
     marginHorizontal: Spacing.lg,
