@@ -148,7 +148,7 @@ export default function EventDetailScreen() {
     if (!id) return;
     try {
       await deleteEntity('events', id);
-      router.back();
+      router.replace('/admin/events');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }

@@ -49,7 +49,7 @@ export default function BadgeDetailScreen() {
     if (!item) return;
     try {
       await deleteEntity('badges', id!);
-      router.back();
+      router.replace('/admin/badges');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }

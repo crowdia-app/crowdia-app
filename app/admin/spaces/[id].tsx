@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useAuthStore } from '@/stores/authStore';
+import { supabase } from '@/lib/supabase';
 import { fetchEntityById, updateEntity, deleteEntity } from '@/services/admin-entities';
 import { AdminDetailView, type DetailSection } from '@/components/admin/AdminDetailView';
 import { AdminFormModal, type FormField } from '@/components/admin/AdminFormModal';
@@ -113,8 +114,19 @@ export default function SpaceDetailScreen() {
 
   const handleDelete = async () => {
     try {
+      const { count } = await supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('location_id', id!);
+      if ((count ?? 0) > 0) {
+        Alert.alert(
+          'Cannot Delete',
+          `This space has ${count} event${count === 1 ? '' : 's'} linked to it. Reassign or delete those events before deleting the space.`
+        );
+        return;
+      }
       await deleteEntity('locations', id!);
-      router.back();
+      router.replace('/admin/spaces');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }

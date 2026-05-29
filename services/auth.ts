@@ -209,6 +209,16 @@ export class AuthService {
     return referrer.id;
   }
 
+  static async deleteAccount() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
+
+    const { error } = await supabase.functions.invoke('delete-account', {
+      method: 'POST',
+    });
+    if (error) throw error;
+  }
+
   static async fetchLeaderboard(limit = 50) {
     const { data, error } = await supabase
       .from('leaderboard')

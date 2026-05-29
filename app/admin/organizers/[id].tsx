@@ -164,7 +164,7 @@ export default function OrganizerDetailScreen() {
   const handleDelete = async () => {
     try {
       await deleteEntity('organizers', id!);
-      router.back();
+      router.replace('/admin/organizers');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }

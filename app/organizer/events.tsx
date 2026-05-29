@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text, Alert, Platform } from 'react-native';
+import { Text, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Stack } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -169,16 +169,10 @@ export default function OrganizerEventsScreen() {
       setShowModal(false);
       loadData();
     };
-    if (Platform.OS === 'web') {
-      if (window.confirm('Are you sure you want to delete this event?')) {
-        await doDelete();
-      }
-    } else {
-      Alert.alert('Delete Event', 'Are you sure you want to delete this event?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: doDelete },
-      ]);
-    }
+    Alert.alert('Delete Event', 'Are you sure you want to delete this event?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: doDelete },
+    ]);
   };
 
   return (

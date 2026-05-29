@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   Alert,
-  Platform,
   useColorScheme,
   ActivityIndicator,
   TextInput,
@@ -39,7 +38,7 @@ const numberFormatter = new Intl.NumberFormat();
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, userProfile, organizerProfile, logout } = useAuthStore();
+  const { user, userProfile, organizerProfile, logout, deleteAccount } = useAuthStore();
   const { interestedEvents, isLoading: interestsLoading, loadInterestedEvents } = useInterestsStore();
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
@@ -69,6 +68,8 @@ export default function ProfileScreen() {
   const [editOrgLogoUrl, setEditOrgLogoUrl] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isSavingOrgProfile, setIsSavingOrgProfile] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Reload saved events every time this tab is focused (same pattern as saved.tsx)
   useFocusEffect(
@@ -111,12 +112,7 @@ export default function ProfileScreen() {
       setOrgReason('');
       await loadOrgRequest();
     } catch (err: any) {
-      const msg = err?.message || 'Failed to submit request';
-      if (Platform.OS === 'web') {
-        window.alert(msg);
-      } else {
-        Alert.alert('Error', msg);
-      }
+      Alert.alert('Error', err?.message || 'Failed to submit request');
     } finally {
       setIsSubmittingOrgRequest(false);
     }
@@ -136,12 +132,7 @@ export default function ProfileScreen() {
       setVoiceReason('');
       await loadVoiceRequest();
     } catch (err: any) {
-      const msg = err?.message || 'Failed to submit request';
-      if (Platform.OS === 'web') {
-        window.alert(msg);
-      } else {
-        Alert.alert('Error', msg);
-      }
+      Alert.alert('Error', err?.message || 'Failed to submit request');
     } finally {
       setIsSubmittingVoiceRequest(false);
     }
@@ -196,30 +187,36 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    if (Platform.OS === 'web') {
-      // On web, use window.confirm for non-blocking confirmation
-      if (window.confirm('Are you sure you want to sign out?')) {
-        logout().catch(() => {
-          // Display error inline if needed
-        });
-      }
-    } else {
-      Alert.alert(
-        'Sign Out',
-        'Are you sure you want to sign out?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Sign Out',
-            style: 'destructive',
-            onPress: () => {
-              logout().catch(() => {
-                Alert.alert('Error', 'Failed to sign out. Please try again.');
-              });
-            },
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: () => {
+            logout().catch(() => {
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            });
           },
-        ]
-      );
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    setShowDeleteConfirmModal(true);
+  };
+
+  const performDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      await deleteAccount();
+    } catch {
+      setIsDeletingAccount(false);
+      setShowDeleteConfirmModal(false);
+      Alert.alert('Error', 'Failed to delete account. Please try again.');
     }
   };
 
@@ -834,6 +831,15 @@ export default function ProfileScreen() {
           <Text style={[styles.logoutText, { color: colors.error }]}>Sign Out</Text>
         </Pressable>
 
+        {/* Delete Account Button */}
+        <Pressable
+          style={[styles.deleteAccountButton]}
+          onPress={handleDeleteAccount}
+        >
+          <Ionicons name="trash-outline" size={18} color={colors.error} />
+          <Text style={[styles.deleteAccountText, { color: colors.error }]}>Delete Account</Text>
+        </Pressable>
+
         {/* Bottom Spacing */}
         <View style={{ height: insets.bottom + Spacing.xxxl }} />
       </ScrollView>
@@ -1133,6 +1139,43 @@ export default function ProfileScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={showDeleteConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isDeletingAccount && setShowDeleteConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Account</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary, marginBottom: Spacing.lg }]}>
+              Are you sure you want to permanently delete your account? All your data will be lost and this action cannot be undone.
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: colors.background }]}
+                onPress={() => setShowDeleteConfirmModal(false)}
+                disabled={isDeletingAccount}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: colors.error }]}
+                onPress={performDeleteAccount}
+                disabled={isDeletingAccount}
+              >
+                {isDeletingAccount ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Delete Account</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1390,6 +1433,21 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: Typography.base,
     fontWeight: '500',
+  },
+
+  // Delete account button (no background — subtle destructive link)
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.xs,
+    opacity: 0.7,
+  },
+  deleteAccountText: {
+    fontSize: Typography.sm,
+    fontWeight: '400',
   },
 
   // Organizer request status badge

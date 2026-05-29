@@ -24,6 +24,7 @@ interface AuthState {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearError: () => void;
 }
@@ -254,6 +255,19 @@ export const useAuthStore = create<AuthState>((set) => ({
         error: getErrorMessage(error),
         isLoading: false,
       });
+      throw error;
+    }
+  },
+
+  deleteAccount: async () => {
+    set({ isLoading: true });
+    try {
+      await AuthService.deleteAccount();
+      // Sign out locally — ignore errors since the auth user is already deleted
+      await AuthService.logout().catch(() => {});
+      set({ user: null, userProfile: null, organizerProfile: null, isLoading: false });
+    } catch (error) {
+      set({ error: getErrorMessage(error), isLoading: false });
       throw error;
     }
   },

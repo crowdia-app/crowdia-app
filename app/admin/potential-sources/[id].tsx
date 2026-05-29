@@ -158,7 +158,7 @@ export default function PotentialSourceDetail() {
     if (!id) return;
     try {
       await deleteEntity('potential_sources', id);
-      router.back();
+      router.replace('/admin/potential-sources');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }

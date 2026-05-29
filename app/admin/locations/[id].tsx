@@ -94,7 +94,7 @@ export default function LocationDetailScreen() {
   const handleDelete = async () => {
     try {
       await deleteEntity('locations', id!);
-      router.back();
+      router.replace('/admin/locations');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }

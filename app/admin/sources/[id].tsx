@@ -201,7 +201,7 @@ export default function SourceDetailScreen() {
     if (!id) return;
     try {
       await deleteEntity('event_sources', id);
-      router.back();
+      router.replace('/admin/sources');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }

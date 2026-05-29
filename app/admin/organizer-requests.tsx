@@ -71,30 +71,20 @@ export default function OrganizerRequestsScreen() {
         await approveOrganizerRequest(req.id, req, userProfile!.id);
         await loadData();
       } catch (err: any) {
-        if (Platform.OS === 'web') {
-          window.alert('Failed to approve: ' + (err?.message || 'Unknown error'));
-        } else {
-          Alert.alert('Error', err?.message || 'Failed to approve request');
-        }
+        Alert.alert('Error', err?.message || 'Failed to approve request');
       } finally {
         setIsSubmitting(false);
       }
     };
 
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Approve organizer request from ${req.user?.display_name || req.user?.username || 'this user'}?`)) {
-        doApprove();
-      }
-    } else {
-      Alert.alert(
-        'Approve Request',
-        `Approve organizer request from ${req.user?.display_name || req.user?.username || 'this user'}?\n\nOrganization: ${req.organization_name}`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Approve', onPress: doApprove },
-        ]
-      );
-    }
+    Alert.alert(
+      'Approve Request',
+      `Approve organizer request from ${req.user?.display_name || req.user?.username || 'this user'}?\n\nOrganization: ${req.organization_name}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Approve', onPress: doApprove },
+      ]
+    );
   };
 
   const handleRejectPress = (req: OrganizerRequest) => {
@@ -111,11 +101,7 @@ export default function OrganizerRequestsScreen() {
       setRejectReason('');
       await loadData();
     } catch (err: any) {
-      if (Platform.OS === 'web') {
-        window.alert('Failed to reject: ' + (err?.message || 'Unknown error'));
-      } else {
-        Alert.alert('Error', err?.message || 'Failed to reject request');
-      }
+      Alert.alert('Error', err?.message || 'Failed to reject request');
     } finally {
       setIsSubmitting(false);
     }

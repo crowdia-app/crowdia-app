@@ -50,7 +50,7 @@ export default function CategoryDetailScreen() {
     if (!item) return;
     try {
       await deleteEntity('categories', id!);
-      router.back();
+      router.replace('/admin/categories');
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Failed to delete');
     }
