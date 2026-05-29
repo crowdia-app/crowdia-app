@@ -47,6 +47,7 @@ async function main() {
   const { runDiscoveryAgent } = await import("./discovery");
   const { generateMissingEmbeddings } = await import("./generate-embeddings");
   const { generateMissingVibeTags } = await import("./generate-vibe-tags");
+  const { generateSimilarEvents } = await import("./generate-similar-events");
 
   // Parse command line arguments
   const args = process.argv.slice(2);
@@ -96,6 +97,9 @@ async function main() {
 
       console.log("\n--- Generating Lumio Vibe Tags ---\n");
       await generateMissingVibeTags();
+
+      console.log("\n--- Pre-computing similar event IDs ---\n");
+      await generateSimilarEvents();
     }
 
     console.log("\n" + "=".repeat(50));

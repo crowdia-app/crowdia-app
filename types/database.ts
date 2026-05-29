@@ -569,6 +569,8 @@ export type Database = {
           source: string | null
           source_metadata: Json | null
           title: string
+          similar_event_ids: string[] | null
+          similar_events_updated_at: string | null
           updated_at: string | null
           vibe_tags: string[] | null
         }
@@ -587,6 +589,8 @@ export type Database = {
           is_published?: boolean | null
           location_id: string
           organizer_id: string
+          similar_event_ids?: string[] | null
+          similar_events_updated_at?: string | null
           source?: string | null
           source_metadata?: Json | null
           title: string
@@ -608,6 +612,8 @@ export type Database = {
           is_published?: boolean | null
           location_id?: string
           organizer_id?: string
+          similar_event_ids?: string[] | null
+          similar_events_updated_at?: string | null
           source?: string | null
           source_metadata?: Json | null
           title?: string
