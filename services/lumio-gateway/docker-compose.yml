@@ -1,0 +1,11 @@
+services:
+  lumio-gateway:
+    build: .
+    image: lumio-gateway:latest
+    container_name: lumio-gateway
+    restart: unless-stopped
+    ports:
+      - "3010:3010"
+    env_file:
+      - .env
+    network_mode: host

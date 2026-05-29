@@ -1,0 +1,12 @@
+{
+  "name": "lumio-gateway",
+  "version": "0.1.0",
+  "description": "Lumio inference gateway — routes to GB10 vLLM or OpenRouter cloud fallback",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

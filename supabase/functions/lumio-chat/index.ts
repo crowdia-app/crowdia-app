@@ -6,7 +6,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const LUMIO_MODEL = "anthropic/claude-haiku-4-5";
+// Gateway handles LLM routing (GB10 local → OpenRouter cloud fallback)
+const LUMIO_GATEWAY_URL = Deno.env.get("LUMIO_GATEWAY_URL") ?? "";
+// Direct OpenRouter fallback when gateway is not configured
+const CLOUD_MODEL = "anthropic/claude-haiku-4-5";
 
 async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
   const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
@@ -27,13 +30,39 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
   return data.data[0].embedding;
 }
 
+async function callGateway(messages: { role: string; content: string }[], userTier: string): Promise<{ reply: string; modelUsed: string; tier: string }> {
+  const res = await fetch(`${LUMIO_GATEWAY_URL}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, userTier, maxTokens: 200 }),
+  });
+  if (!res.ok) throw new Error(`Gateway error ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function callOpenRouterDirect(messages: { role: string; content: string }[], apiKey: string): Promise<string> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://crowdia.app",
+      "X-Title": "Crowdia Lumio Chat",
+    },
+    body: JSON.stringify({ model: CLOUD_MODEL, max_tokens: 200, messages }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter error ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() ?? "";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { message, userId, userCity } = await req.json();
+    const { message, userId, userCity, userTier = "free" } = await req.json();
 
     if (!message?.trim()) {
       return new Response(
@@ -48,23 +77,19 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1. Embed the user message and find relevant events via match_events RPC
+    // 1. Embed and match events
     const embedding = await generateEmbedding(message.trim(), apiKey);
-
     const { data: events, error: rpcError } = await supabase.rpc("match_events", {
       query_embedding: embedding,
       match_threshold: 0.35,
       match_count: 5,
       filter_since: new Date().toISOString(),
     });
-
-    if (rpcError) {
-      console.error("match_events error:", rpcError);
-    }
-
+    if (rpcError) console.error("match_events error:", rpcError);
     const foundEvents = events ?? [];
 
-    // 2. Build context from found events for the LLM
+    // 2. Build messages for the LLM
+    const city = userCity ?? "Palermo";
     const eventContext = foundEvents.length > 0
       ? foundEvents.slice(0, 3).map((e: { title: string; location_name?: string; event_start_time?: string }) => {
           const parts = [e.title];
@@ -77,47 +102,41 @@ Deno.serve(async (req) => {
         }).join("\n")
       : null;
 
-    const city = userCity ?? "Palermo";
-
     const systemPrompt = `Sei Lumio, la guida AI di Crowdia per la vita culturale e notturna di ${city}. Parli come un amico locale che conosce bene la città. Rispondi sempre in italiano, in modo caldo, breve e diretto (1-2 frasi al massimo). Se hai trovato eventi pertinenti, menzionali naturalmente nella risposta.`;
-
     const userPrompt = eventContext
       ? `L'utente chiede: "${message}"\n\nEventi trovati:\n${eventContext}\n\nRispondi consigliando uno o più di questi eventi.`
       : `L'utente chiede: "${message}"\n\nNon ho trovato eventi specifici per questa ricerca. Rispondi in modo utile e incoraggiante.`;
 
-    // 3. Call Lumio persona via OpenRouter
-    const chatRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://crowdia.app",
-        "X-Title": "Crowdia Lumio Chat",
-      },
-      body: JSON.stringify({
-        model: LUMIO_MODEL,
-        max_tokens: 200,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ];
 
-    if (!chatRes.ok) {
-      throw new Error(`Chat API error ${chatRes.status}: ${await chatRes.text()}`);
+    // 3. Call gateway (GB10 → cloud fallback) or direct OpenRouter if gateway not configured
+    let reply: string;
+    let modelUsed: string;
+    let tier: string;
+
+    if (LUMIO_GATEWAY_URL) {
+      const result = await callGateway(messages, userTier);
+      reply = result.reply;
+      modelUsed = result.modelUsed;
+      tier = result.tier;
+    } else {
+      reply = await callOpenRouterDirect(messages, apiKey);
+      modelUsed = CLOUD_MODEL;
+      tier = "cloud";
     }
 
-    const chatData = await chatRes.json();
-    const reply = chatData.choices?.[0]?.message?.content?.trim() ?? "Non sono riuscito a trovare qualcosa per te. Riprova!";
+    if (!reply) reply = "Non sono riuscito a trovare qualcosa per te. Riprova!";
 
     return new Response(
       JSON.stringify({
         reply,
         events: foundEvents.slice(0, 3),
         lumioAvatar: foundEvents.length > 0 ? "excited" : "idle",
-        tier: "cloud",
-        modelUsed: "haiku-4-5",
+        tier,
+        modelUsed,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
