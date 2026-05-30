@@ -12,9 +12,10 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Charcoal, Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { askLumio } from '@/services/lumio';
+import { askLumio, LumioEvent } from '@/services/lumio';
 import { useAuthStore } from '@/stores/authStore';
 
 const LUMIO_PURPLE = '#7C3AED';
@@ -25,6 +26,7 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'lumio';
   text: string;
+  events?: LumioEvent[];
 }
 
 const SUGGESTED_PROMPTS = [
@@ -43,6 +45,7 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user } = useAuthStore();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -72,6 +75,7 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
           id: `l-${Date.now()}`,
           role: 'lumio',
           text: response.reply,
+          events: response.events.length > 0 ? response.events : undefined,
         };
         setMessages((prev) => [...prev, lumioMsg]);
       } finally {
@@ -169,38 +173,79 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
                 </View>
               </View>
             ) : (
-              messages.map((msg) => (
-                <View
-                  key={msg.id}
-                  style={[
-                    styles.bubbleRow,
-                    msg.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowLumio,
-                  ]}
-                >
-                  {msg.role === 'lumio' && (
-                    <View style={styles.lumioAvatarSmall}>
-                      <Ionicons name="bulb" size={12} color="#FFFFFF" />
+              messages.map((msg) => {
+                if (msg.role === 'lumio') {
+                  return (
+                    <View key={msg.id} style={styles.lumioMessageGroup}>
+                      <View style={[styles.bubbleRow, styles.bubbleRowLumio]}>
+                        <View style={styles.lumioAvatarSmall}>
+                          <Ionicons name="bulb" size={12} color="#FFFFFF" />
+                        </View>
+                        <View style={[styles.bubble, { backgroundColor: bubbleLumioBg }]}>
+                          <Text style={[styles.bubbleText, { color: bubbleLumioText }]}>
+                            {msg.text}
+                          </Text>
+                        </View>
+                      </View>
+                      {msg.events && msg.events.length > 0 && (
+                        <View style={styles.eventCards}>
+                          {msg.events.map((event) => {
+                            const dateLabel = event.event_start_time
+                              ? new Date(event.event_start_time).toLocaleDateString('it-IT', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : null;
+                            return (
+                              <Pressable
+                                key={event.id}
+                                style={({ pressed }) => [
+                                  styles.eventCard,
+                                  {
+                                    backgroundColor:
+                                      colorScheme === 'dark' ? Charcoal[700] : '#EDE9FE',
+                                    borderColor: LUMIO_PURPLE + '44',
+                                    opacity: pressed ? 0.8 : 1,
+                                  },
+                                ]}
+                                onPress={() => {
+                                  onClose();
+                                  router.push(`/event/${event.id}`);
+                                }}
+                              >
+                                <Text
+                                  style={[styles.eventCardTitle, { color: bubbleLumioText }]}
+                                  numberOfLines={1}
+                                >
+                                  {event.title}
+                                </Text>
+                                {(event.location_name || dateLabel) && (
+                                  <Text
+                                    style={[styles.eventCardMeta, { color: colors.textMuted }]}
+                                    numberOfLines={1}
+                                  >
+                                    {[event.location_name, dateLabel].filter(Boolean).join(' · ')}
+                                  </Text>
+                                )}
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      )}
                     </View>
-                  )}
-                  <View
-                    style={[
-                      styles.bubble,
-                      msg.role === 'user'
-                        ? { backgroundColor: bubbleUserBg }
-                        : { backgroundColor: bubbleLumioBg },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.bubbleText,
-                        { color: msg.role === 'user' ? '#FFFFFF' : bubbleLumioText },
-                      ]}
-                    >
-                      {msg.text}
-                    </Text>
+                  );
+                }
+                return (
+                  <View key={msg.id} style={[styles.bubbleRow, styles.bubbleRowUser]}>
+                    <View style={[styles.bubble, { backgroundColor: bubbleUserBg }]}>
+                      <Text style={[styles.bubbleText, { color: '#FFFFFF' }]}>{msg.text}</Text>
+                    </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
             {isSending && (
               <View style={[styles.bubbleRow, styles.bubbleRowLumio]}>
@@ -404,5 +449,27 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  lumioMessageGroup: {
+    marginBottom: Spacing.sm,
+  },
+  eventCards: {
+    marginLeft: 22 + (Spacing.xs ?? 4),
+    marginTop: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  eventCard: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md ?? 8,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  eventCardTitle: {
+    fontSize: Typography.sm,
+    fontWeight: '600',
+  },
+  eventCardMeta: {
+    fontSize: Typography.xs,
+    marginTop: 2,
   },
 });

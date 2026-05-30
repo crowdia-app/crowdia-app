@@ -8,10 +8,17 @@ export interface LumioRequest {
   userTier?: string;
 }
 
+export interface LumioEvent {
+  id: string;
+  title: string;
+  location_name?: string | null;
+  event_start_time?: string | null;
+}
+
 export interface LumioResponse {
   reply: string;
   lumioAvatar: 'idle' | 'listening' | 'thinking' | 'excited';
-  events: unknown[];
+  events: LumioEvent[];
   tier?: string;
   modelUsed?: string;
 }
