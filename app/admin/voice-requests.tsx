@@ -38,6 +38,7 @@ export default function VoiceRequestsScreen() {
 
   const [rejectTarget, setRejectTarget] = useState<VoiceRequestWithUser | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [approveTarget, setApproveTarget] = useState<VoiceRequestWithUser | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = useCallback(async (isRefresh = false) => {
@@ -62,27 +63,23 @@ export default function VoiceRequestsScreen() {
     }
   }, [requests, statusFilter]);
 
-  const handleApprove = (req: VoiceRequestWithUser) => {
-    const doApprove = async () => {
-      setIsSubmitting(true);
-      try {
-        await approveVoiceRequest(req.id, req.user_id, userProfile!.id);
-        await loadData();
-      } catch (err: any) {
-        Alert.alert('Error', err?.message || 'Failed to approve request');
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
+  // Inline modal confirm (Alert.alert with buttons does nothing on Expo Web)
+  const handleApprovePress = (req: VoiceRequestWithUser) => {
+    setApproveTarget(req);
+  };
 
-    Alert.alert(
-      'Approve Voice Request',
-      `Approve voice request from ${req.user?.display_name || req.user?.username || 'this user'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Approve', onPress: doApprove },
-      ]
-    );
+  const handleApproveConfirm = async () => {
+    if (!approveTarget) return;
+    setIsSubmitting(true);
+    try {
+      await approveVoiceRequest(approveTarget.id, approveTarget.user_id, userProfile!.id);
+      setApproveTarget(null);
+      await loadData();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to approve request');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRejectPress = (req: VoiceRequestWithUser) => {
@@ -179,7 +176,7 @@ export default function VoiceRequestsScreen() {
                 key={req.id}
                 req={req}
                 colors={colors}
-                onApprove={() => handleApprove(req)}
+                onApprove={() => handleApprovePress(req)}
                 onReject={() => handleRejectPress(req)}
                 isSubmitting={isSubmitting}
               />
@@ -235,6 +232,41 @@ export default function VoiceRequestsScreen() {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text style={[styles.modalBtnText, { color: '#fff' }]}>Reject</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!approveTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setApproveTarget(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Approve Voice Request</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Approve voice request from {approveTarget?.user?.display_name || approveTarget?.user?.username || 'this user'}?
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: colors.background }]}
+                onPress={() => setApproveTarget(null)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: Magenta[500] }]}
+                onPress={handleApproveConfirm}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Approve</Text>
                 )}
               </Pressable>
             </View>

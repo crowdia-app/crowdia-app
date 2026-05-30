@@ -40,6 +40,7 @@ export default function OrganizerRequestsScreen() {
   // Reject modal state
   const [rejectTarget, setRejectTarget] = useState<OrganizerRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [approveTarget, setApproveTarget] = useState<OrganizerRequest | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = useCallback(async (isRefresh = false) => {
@@ -64,27 +65,23 @@ export default function OrganizerRequestsScreen() {
     }
   }, [requests, statusFilter]);
 
-  const handleApprove = (req: OrganizerRequest) => {
-    const doApprove = async () => {
-      setIsSubmitting(true);
-      try {
-        await approveOrganizerRequest(req.id, req, userProfile!.id);
-        await loadData();
-      } catch (err: any) {
-        Alert.alert('Error', err?.message || 'Failed to approve request');
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
+  // Inline modal confirm (Alert.alert with buttons does nothing on Expo Web)
+  const handleApprovePress = (req: OrganizerRequest) => {
+    setApproveTarget(req);
+  };
 
-    Alert.alert(
-      'Approve Request',
-      `Approve organizer request from ${req.user?.display_name || req.user?.username || 'this user'}?\n\nOrganization: ${req.organization_name}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Approve', onPress: doApprove },
-      ]
-    );
+  const handleApproveConfirm = async () => {
+    if (!approveTarget) return;
+    setIsSubmitting(true);
+    try {
+      await approveOrganizerRequest(approveTarget.id, approveTarget, userProfile!.id);
+      setApproveTarget(null);
+      await loadData();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to approve request');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRejectPress = (req: OrganizerRequest) => {
@@ -183,7 +180,7 @@ export default function OrganizerRequestsScreen() {
                 key={req.id}
                 req={req}
                 colors={colors}
-                onApprove={() => handleApprove(req)}
+                onApprove={() => handleApprovePress(req)}
                 onReject={() => handleRejectPress(req)}
                 isSubmitting={isSubmitting}
               />
@@ -241,6 +238,41 @@ export default function OrganizerRequestsScreen() {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text style={[styles.modalBtnText, { color: '#fff' }]}>Reject</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!approveTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setApproveTarget(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Approve Request</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Approve organizer request from {approveTarget?.user?.display_name || approveTarget?.user?.username || 'this user'}? ({approveTarget?.organization_name})
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: colors.background }]}
+                onPress={() => setApproveTarget(null)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: Magenta[500] }]}
+                onPress={handleApproveConfirm}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Approve</Text>
                 )}
               </Pressable>
             </View>
