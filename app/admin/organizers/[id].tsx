@@ -19,6 +19,7 @@ import {
 const formFields: FormField[] = [
   { key: 'organization_name', label: 'Organization Name', type: 'text', required: true },
   { key: 'logo_url', label: 'Logo URL', type: 'text' },
+  { key: 'description', label: 'Description', type: 'textarea' },
   { key: 'email', label: 'Email', type: 'text' },
   { key: 'phone', label: 'Phone', type: 'text' },
   { key: 'instagram_handle', label: 'Instagram Handle', type: 'text' },
