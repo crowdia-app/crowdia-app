@@ -29,6 +29,7 @@ import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
 import { VibeTagsRow } from '@/components/ui/VibeTagPill';
 import { trackEvent } from '@/utils/analytics';
+import { useAuthStore } from '@/stores/authStore';
 
 const HERO_HEIGHT = 280;
 type Tab = 'upcoming' | 'archive';
@@ -52,6 +53,14 @@ export default function OrganizerProfileScreen() {
   const insets = useSafeAreaInsets();
   const [logoError, setLogoError] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
+
+  const { userProfile, organizerProfile } = useAuthStore();
+  // Show edit button for: super-admins, admins, or the organizer owner (user whose organizerProfile.id matches this page)
+  const canEdit = !!(
+    (userProfile as any)?.is_super_admin ||
+    userProfile?.is_admin ||
+    (organizerProfile?.id === id)
+  );
 
   const { data: organizer, isLoading: isLoadingOrganizer } = useQuery({
     queryKey: ['organizer', id],
@@ -173,6 +182,12 @@ export default function OrganizerProfileScreen() {
       />
       <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
         <HeaderButton onPress={handleBack} icon="arrow-back" />
+        {canEdit && organizer && (
+          <HeaderButton
+            onPress={() => router.push(`/admin/organizers/${id}`)}
+            icon="pencil"
+          />
+        )}
       </View>
       {organizer && (
         <View style={styles.avatarWrapper}>
@@ -425,6 +440,9 @@ const styles = StyleSheet.create({
   headerRow: {
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerButton: {
     width: 44,
