@@ -24,6 +24,7 @@ import {
   fetchOrganizerPastEvents,
   fetchOrganizerEventCount,
 } from '@/services/organizers';
+import { fetchOrganizerSpaces } from '@/services/venues';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
@@ -78,6 +79,12 @@ export default function OrganizerProfileScreen() {
   const { data: totalEventCount = 0 } = useQuery({
     queryKey: ['organizer-event-count', id],
     queryFn: () => fetchOrganizerEventCount(id!),
+    enabled: !!id,
+  });
+
+  const { data: ownedSpaces = [] } = useQuery({
+    queryKey: ['organizer-spaces', id],
+    queryFn: () => fetchOrganizerSpaces(id!),
     enabled: !!id,
   });
 
@@ -348,6 +355,35 @@ export default function OrganizerProfileScreen() {
                   <Ionicons name="location-outline" size={13} color={Magenta[500]} />
                   <Text style={[styles.venueChipText, { color: colors.textSecondary }]} numberOfLines={1}>
                     {v.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Owned Spaces section — spaces where this organizer is operator_org_id */}
+        {ownedSpaces.length > 0 ? (
+          <View style={styles.venueCarouselSection}>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>I NOSTRI SPAZI</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.venueCarouselContent}
+            >
+              {ownedSpaces.map((s) => (
+                <Pressable
+                  key={s.id}
+                  style={({ pressed }) => [
+                    styles.venueChip,
+                    { backgroundColor: colors.card },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => router.push(`/venue/${s.id}`)}
+                >
+                  <Ionicons name="location-sharp" size={13} color={Magenta[500]} />
+                  <Text style={[styles.venueChipText, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {s.name}
                   </Text>
                 </Pressable>
               ))}

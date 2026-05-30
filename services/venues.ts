@@ -69,3 +69,21 @@ export async function fetchVenueEvents(locationId: string, limit = 20): Promise<
   }
   return (data ?? []) as EventWithStats[];
 }
+
+/**
+ * Fetch spaces (locations) owned/operated by an organizer (operator_org_id = organizerId).
+ */
+export async function fetchOrganizerSpaces(organizerId: string, limit = 10): Promise<Location[]> {
+  const { data, error } = await supabase
+    .from('locations')
+    .select('*')
+    .eq('operator_org_id', organizerId)
+    .order('name', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching organizer spaces:', error);
+    return [];
+  }
+  return (data ?? []) as Location[];
+}
