@@ -174,12 +174,6 @@ export default function VenueProfileScreen() {
   // Data fetching
   // -------------------------------------------------------------------------
 
-  const { userProfile } = useAuthStore();
-  // Show edit button for super-admins and regular admins
-  const canEdit = !!(
-    (userProfile as any)?.is_super_admin || userProfile?.is_admin
-  );
-
   const { data: venue, isLoading: isLoadingVenue } = useQuery({
     queryKey: ['venue', id],
     queryFn: () => fetchVenueById(id!),
