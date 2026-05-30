@@ -13,7 +13,9 @@
     "agents:extract": "tsx agents/index.ts --extraction",
     "agents:discover": "tsx agents/index.ts --discovery",
     "agents:both": "tsx agents/index.ts --both",
-    "make-admin": "tsx scripts/make-admin.ts"
+    "make-admin": "tsx scripts/make-admin.ts",
+    "organizer-images": "tsx agents/organizer-images.ts",
+    "organizer-images:batch": "tsx agents/organizer-images.ts --batch"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -38,6 +40,7 @@
     "expo-image-picker": "^15.1.0",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.8",
+    "expo-localization": "^55.0.11",
     "expo-location": "^18.1.6",
     "expo-router": "~6.0.14",
     "expo-secure-store": "~15.0.7",
@@ -68,7 +71,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
-    "dotenv": "^17.3.1",
+    "dotenv": "^16.6.1",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "openai": "^4.104.0",
