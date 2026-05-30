@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -20,7 +22,10 @@ import { useAuthStore } from '@/stores/authStore';
 
 const LUMIO_PURPLE = '#7C3AED';
 const LUMIO_PURPLE_DIM = '#5B21B6';
+const LUMIO_PURPLE_BRIGHT = '#9333EA';
 const LUMIO_BG = '#1E1B2E';
+
+type LumioAvatarState = 'idle' | 'listening' | 'thinking' | 'excited';
 
 interface ChatMessage {
   id: string;
@@ -51,7 +56,77 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [lumioAvatarState, setLumioAvatarState] = useState<LumioAvatarState>('idle');
   const scrollRef = useRef<ScrollView>(null);
+
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const animRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    animRef.current?.stop();
+    animRef.current = null;
+    pulseAnim.setValue(0);
+    spinAnim.setValue(0);
+
+    if (lumioAvatarState === 'listening') {
+      scaleAnim.setValue(1);
+      animRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
+        ]),
+      );
+      animRef.current.start();
+    } else if (lumioAvatarState === 'thinking') {
+      scaleAnim.setValue(1);
+      animRef.current = Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      );
+      animRef.current.start();
+    } else if (lumioAvatarState === 'excited') {
+      animRef.current = Animated.sequence([
+        Animated.spring(scaleAnim, { toValue: 1.2, speed: 14, bounciness: 4, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, speed: 10, bounciness: 8, useNativeDriver: true }),
+      ]);
+      animRef.current.start(() => {
+        animRef.current = null;
+      });
+    } else {
+      animRef.current = Animated.timing(scaleAnim, { toValue: 1, duration: 200, useNativeDriver: true });
+      animRef.current.start(() => {
+        animRef.current = null;
+      });
+    }
+  }, [lumioAvatarState, pulseAnim, spinAnim, scaleAnim]);
+
+  useEffect(() => {
+    if (isSending) setLumioAvatarState('thinking');
+  }, [isSending]);
+
+  useEffect(() => {
+    if (!visible) {
+      animRef.current?.stop();
+      pulseAnim.setValue(0);
+      spinAnim.setValue(0);
+      scaleAnim.setValue(1);
+    }
+  }, [visible, pulseAnim, spinAnim, scaleAnim]);
+
+  const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  const avatarBgColor =
+    lumioAvatarState === 'idle'
+      ? LUMIO_PURPLE_DIM
+      : lumioAvatarState === 'excited'
+        ? LUMIO_PURPLE_BRIGHT
+        : LUMIO_PURPLE;
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -78,6 +153,7 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
           events: response.events.length > 0 ? response.events : undefined,
         };
         setMessages((prev) => [...prev, lumioMsg]);
+        setLumioAvatarState(response.lumioAvatar);
       } finally {
         setIsSending(false);
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
@@ -96,6 +172,7 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
   const handleClose = useCallback(() => {
     setMessages([]);
     setInputText('');
+    setLumioAvatarState('idle');
     onClose();
   }, [onClose]);
 
@@ -124,8 +201,16 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
 
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="bulb" size={22} color="#FFFFFF" />
+            <View style={styles.avatarContainer}>
+              <Animated.View style={[styles.avatarPulseRing, { opacity: pulseAnim }]} />
+              <Animated.View
+                style={[
+                  styles.avatarPlaceholder,
+                  { backgroundColor: avatarBgColor, transform: [{ scale: scaleAnim }, { rotate: spin }] },
+                ]}
+              >
+                <Ionicons name="bulb" size={22} color="#FFFFFF" />
+              </Animated.View>
             </View>
             <View style={styles.headerText}>
               <Text style={styles.headerName}>Lumio</Text>
@@ -270,7 +355,13 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
                 },
               ]}
               value={inputText}
-              onChangeText={setInputText}
+              onFocus={() => {
+                if (!isSending) setLumioAvatarState('listening');
+              }}
+              onChangeText={(t) => {
+                setInputText(t);
+                if (!isSending) setLumioAvatarState('listening');
+              }}
               placeholder="Chiedimi qualcosa..."
               placeholderTextColor={colors.textMuted}
               multiline
@@ -327,6 +418,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
+  },
+  avatarContainer: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarPulseRing: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2.5,
+    borderColor: LUMIO_PURPLE,
   },
   avatarPlaceholder: {
     width: 40,
