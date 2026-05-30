@@ -1,14 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
+  Animated,
+  Easing,
   FlatList,
-  Pressable,
-  useColorScheme,
   Linking,
   Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -25,8 +27,13 @@ import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
 import { MapSection } from '@/components/maps/MapSection';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
+import { useAuthStore } from '@/stores/authStore';
 
 const HERO_HEIGHT = 280;
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
@@ -47,6 +54,10 @@ function isOutdoorType(venueType: string | null): boolean {
   const t = venueType.toLowerCase();
   return ['outdoor', 'rooftop', 'garden', 'beach', 'park'].some((k) => t.includes(k));
 }
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 function HeaderButton({ onPress, icon }: { onPress: () => void; icon: string }) {
   return (
@@ -70,6 +81,82 @@ function AmenityChip({ icon, label }: { icon: string; label: string }) {
   );
 }
 
+/** Pulsing Crowdia Halo ring — only animates when isActive */
+function HaloRing({
+  isActive,
+  children,
+}: {
+  isActive: boolean;
+  children: React.ReactNode;
+}) {
+  const pulse = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (!isActive) {
+      opacity.setValue(0);
+      pulse.setValue(1);
+      return;
+    }
+    opacity.setValue(1);
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.08,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [isActive, pulse, opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.haloRing,
+        isActive && styles.haloActive,
+        { transform: [{ scale: pulse }] },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/** Horizontal gallery of atmospheric venue photos */
+function AmbientGallery({ urls }: { urls: string[] }) {
+  if (!urls.length) return null;
+  return (
+    <FlatList
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      data={urls}
+      keyExtractor={(item, i) => `${item}-${i}`}
+      contentContainerStyle={styles.galleryList}
+      renderItem={({ item }) => (
+        <Image
+          source={{ uri: item }}
+          style={styles.galleryImage}
+          contentFit="cover"
+        />
+      )}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
+
 export default function VenueProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -77,7 +164,15 @@ export default function VenueProfileScreen() {
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
   const userLocation = useEventsFilterStore((s) => s.userLocation);
-  const [logoError, setLogoError] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const { userProfile } = useAuthStore();
+  // Show edit button for super-admins and regular admins
+  const canEdit = !!((userProfile as any)?.is_super_admin || userProfile?.is_admin);
+
+  // -------------------------------------------------------------------------
+  // Data fetching
+  // -------------------------------------------------------------------------
 
   const { data: venue, isLoading: isLoadingVenue } = useQuery({
     queryKey: ['venue', id],
@@ -102,6 +197,10 @@ export default function VenueProfileScreen() {
     queryFn: () => fetchVenueCollaborators(id!),
     enabled: !!id,
   });
+
+  // -------------------------------------------------------------------------
+  // Derived state
+  // -------------------------------------------------------------------------
 
   const organizerMap = useMemo<Record<string, string>>(() => {
     const map: Record<string, string> = {};
@@ -130,8 +229,23 @@ export default function VenueProfileScreen() {
     return formatDistance(km);
   }, [userLocation, venue]);
 
+  // Avatar: prefer venue's own image_url (hero image doubles as venue identity visual),
+  // fall back to the managing organizer's logo if present.
+  const avatarUri = (!avatarError && (venue?.image_url || organizer?.logo_url)) || null;
+
   const outdoor = isOutdoorType(venue?.venue_type ?? null);
-  const hasLogo = !!organizer?.logo_url && !logoError;
+
+  // Ambient gallery: use gallery_urls if populated (post-migration), else empty.
+  const galleryUrls: string[] = useMemo(() => {
+    if (!venue) return [];
+    const raw = (venue as any).gallery_urls;
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    return [];
+  }, [venue]);
+
+  // -------------------------------------------------------------------------
+  // Handlers
+  // -------------------------------------------------------------------------
 
   const handleBack = () => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -159,35 +273,52 @@ export default function VenueProfileScreen() {
     router.push(`/organizer/${venue.operator_org_id}`);
   };
 
+  // -------------------------------------------------------------------------
+  // Hero element (shared between loading / error / full views)
+  // -------------------------------------------------------------------------
+
   const heroEl = (
     <View style={[styles.heroContainer, { height: HERO_HEIGHT + insets.top }]}>
-      {venue?.image_url ? (
+      {/* Atmospheric backdrop — use first gallery image if available, else cover image */}
+      {(galleryUrls[0] || venue?.image_url) ? (
         <Image
-          source={{ uri: venue.image_url }}
+          source={{ uri: galleryUrls[0] ?? venue?.image_url ?? '' }}
           style={StyleSheet.absoluteFillObject}
           contentFit="cover"
+          blurRadius={Platform.OS === 'web' ? 0 : 2}
         />
       ) : null}
+      {/* Fade-to-dark gradient */}
       <LinearGradient
-        colors={venue?.image_url
-          ? ['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.6)', colors.background] as any
-          : ['#080808', '#121212', '#1c1c1c', colors.background] as any}
-        locations={[0, 0.35, 0.65, 1]}
+        colors={
+          (galleryUrls[0] || venue?.image_url)
+            ? (['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)', colors.background] as any)
+            : (['#080808', '#121212', '#1c1c1c', colors.background] as any)
+        }
+        locations={[0, 0.3, 0.6, 1]}
         style={StyleSheet.absoluteFillObject}
       />
+      {/* Header row: back + optional edit */}
       <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
         <HeaderButton onPress={handleBack} icon="arrow-back" />
+        {canEdit && venue && (
+          <HeaderButton
+            onPress={() => router.push(`/admin/spaces/${id}`)}
+            icon="pencil"
+          />
+        )}
       </View>
+      {/* Centered circular avatar with Crowdia Halo */}
       {venue && (
         <View style={styles.avatarWrapper}>
-          <View style={[styles.haloRing, isLiveNow && styles.haloActive]}>
+          <HaloRing isActive={isLiveNow}>
             <View style={[styles.avatarInner, { backgroundColor: colors.card }]}>
-              {hasLogo ? (
+              {avatarUri ? (
                 <Image
-                  source={{ uri: organizer!.logo_url! }}
+                  source={{ uri: avatarUri }}
                   style={styles.avatarImage}
                   contentFit="contain"
-                  onError={() => setLogoError(true)}
+                  onError={() => setAvatarError(true)}
                 />
               ) : (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: Magenta[500] + '1a' }]}>
@@ -195,7 +326,7 @@ export default function VenueProfileScreen() {
                 </View>
               )}
             </View>
-          </View>
+          </HaloRing>
           {isLiveNow && (
             <View style={styles.livePill}>
               <View style={styles.liveDot} />
@@ -206,6 +337,10 @@ export default function VenueProfileScreen() {
       )}
     </View>
   );
+
+  // -------------------------------------------------------------------------
+  // Loading / error states
+  // -------------------------------------------------------------------------
 
   if (isLoadingVenue) {
     return (
@@ -223,14 +358,39 @@ export default function VenueProfileScreen() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {heroEl}
         <View style={styles.errorContainer}>
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Venue not found</Text>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Venue non trovato</Text>
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
-            This venue profile may have been removed.
+            Questo profilo potrebbe essere stato rimosso.
           </Text>
         </View>
       </View>
     );
   }
+
+  // -------------------------------------------------------------------------
+  // Amenities — build list from available fields
+  // -------------------------------------------------------------------------
+
+  type AmenityEntry = { icon: string; label: string };
+  const amenities: AmenityEntry[] = [
+    {
+      icon: outdoor ? 'partly-sunny-outline' : 'home-outline',
+      label: outdoor ? "All'aperto" : 'Al chiuso',
+    },
+  ];
+  // Fields from the future migration — cast through any so existing DB rows
+  // (which return undefined/null) degrade gracefully.
+  const vAny = venue as any;
+  if (vAny.has_accessibility) amenities.push({ icon: 'accessibility-outline', label: 'Accesso Disabili' });
+  if (vAny.has_parking) amenities.push({ icon: 'car-outline', label: 'Parcheggio Privato' });
+  if (vAny.has_smoking_area) amenities.push({ icon: 'flame-outline', label: 'Area Fumatori' });
+  if (vAny.has_wardrobe) amenities.push({ icon: 'shirt-outline', label: 'Guardaroba' });
+  if (vAny.has_internal_food) amenities.push({ icon: 'restaurant-outline', label: 'Cucina/Food interna' });
+  if (venue.seasonality) amenities.push({ icon: 'calendar-outline', label: venue.seasonality });
+
+  // -------------------------------------------------------------------------
+  // Full profile render
+  // -------------------------------------------------------------------------
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -240,7 +400,7 @@ export default function VenueProfileScreen() {
       >
         {heroEl}
 
-        {/* Name + Authority Badge */}
+        {/* ── Name + Authority Badge ────────────────────────────────────── */}
         <View style={styles.nameSection}>
           <Text style={[styles.venueName, { color: colors.text }]}>{venue.name}</Text>
           <View
@@ -255,11 +415,11 @@ export default function VenueProfileScreen() {
           </View>
         </View>
 
-        {/* B2B CTA for unverified spaces */}
+        {/* ── B2B CTA for unverified listings ───────────────────────────── */}
         {!isVerified && (
           <View style={[styles.b2bCard, { backgroundColor: colors.card }]}>
             <Ionicons name="business-outline" size={20} color={Magenta[500]} style={{ marginTop: 1 }} />
-            <Text style={[styles.b2bText, { color: colors.textSecondary }]} numberOfLines={4}>
+            <Text style={[styles.b2bText, { color: colors.textSecondary }]} numberOfLines={5}>
               {'Sei il proprietario di '}
               <Text style={{ color: colors.text, fontWeight: '600' }}>{venue.name}</Text>
               {'? Attiva la gestione di questo profilo con i suoi eventi e sblocca gli analytics.'}
@@ -267,13 +427,21 @@ export default function VenueProfileScreen() {
           </View>
         )}
 
-        {/* Status row: live status + distance + address */}
+        {/* ── Live status + distance + address row ──────────────────────── */}
         <View style={[styles.statusRow, { backgroundColor: colors.card }]}>
           <View style={styles.statusItem}>
             <View
-              style={[styles.statusDot, { backgroundColor: isLiveNow ? '#22c55e' : colors.textMuted }]}
+              style={[
+                styles.statusDot,
+                { backgroundColor: isLiveNow ? '#22c55e' : colors.textMuted },
+              ]}
             />
-            <Text style={[styles.statusLabel, { color: isLiveNow ? '#22c55e' : colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.statusLabel,
+                { color: isLiveNow ? '#22c55e' : colors.textSecondary },
+              ]}
+            >
               {isLiveNow ? 'Aperto Ora' : 'Chiuso'}
             </Text>
           </View>
@@ -299,7 +467,11 @@ export default function VenueProfileScreen() {
               >
                 <Ionicons name="map-outline" size={13} color={colors.textSecondary} />
                 <Text
-                  style={[styles.statusLabel, styles.statusAddressText, { color: colors.textSecondary }]}
+                  style={[
+                    styles.statusLabel,
+                    styles.statusAddressText,
+                    { color: colors.textSecondary },
+                  ]}
                   numberOfLines={1}
                 >
                   {venue.address}
@@ -310,7 +482,7 @@ export default function VenueProfileScreen() {
           ) : null}
         </View>
 
-        {/* Link to managing organizer */}
+        {/* ── Managing organizer link (verified spaces only) ────────────── */}
         {isVerified ? (
           <Pressable
             style={({ pressed }) => [
@@ -331,7 +503,7 @@ export default function VenueProfileScreen() {
           </Pressable>
         ) : null}
 
-        {/* Website */}
+        {/* ── Website ───────────────────────────────────────────────────── */}
         {venue.website_url ? (
           <Pressable
             style={({ pressed }) => [
@@ -342,28 +514,36 @@ export default function VenueProfileScreen() {
             onPress={handleOpenWebsite}
           >
             <Ionicons name="globe-outline" size={16} color={colors.textSecondary} />
-            <Text style={[styles.infoText, { color: colors.textSecondary }]} numberOfLines={1}>
+            <Text
+              style={[styles.infoText, { color: colors.textSecondary }]}
+              numberOfLines={1}
+            >
               {venue.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
             </Text>
             <Ionicons name="open-outline" size={14} color={colors.textMuted} />
           </Pressable>
         ) : null}
 
-        {/* Amenities */}
+        {/* ── Venue description ─────────────────────────────────────────── */}
+        {vAny.description ? (
+          <View style={[styles.descriptionCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>
+              {vAny.description}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* ── Structural Amenities grid ─────────────────────────────────── */}
         <View style={[styles.amenitiesCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.cardSectionLabel, { color: colors.textMuted }]}>CARATTERISTICHE</Text>
           <View style={styles.amenitiesGrid}>
-            <AmenityChip
-              icon={outdoor ? 'partly-sunny-outline' : 'home-outline'}
-              label={outdoor ? "All'aperto" : 'Al chiuso'}
-            />
-            {venue.seasonality ? (
-              <AmenityChip icon="calendar-outline" label={venue.seasonality} />
-            ) : null}
+            {amenities.map((a) => (
+              <AmenityChip key={a.label} icon={a.icon} label={a.label} />
+            ))}
           </View>
         </View>
 
-        {/* Map */}
+        {/* ── Dominant map module ───────────────────────────────────────── */}
         <View style={styles.mapWrapper}>
           <MapSection
             latitude={venue.lat}
@@ -374,10 +554,20 @@ export default function VenueProfileScreen() {
           />
         </View>
 
-        {/* Frequent Collaborators */}
+        {/* ── Ambient Gallery (horizontal media grid) ───────────────────── */}
+        {galleryUrls.length > 0 && (
+          <View style={styles.gallerySection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Galleria</Text>
+            <AmbientGallery urls={galleryUrls} />
+          </View>
+        )}
+
+        {/* ── Frequent Collaborators carousel ──────────────────────────── */}
         {collaborators.length > 1 && (
           <View style={styles.collaboratorsSection}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Collaboratori frequenti</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Collaboratori frequenti
+            </Text>
             <FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -386,7 +576,10 @@ export default function VenueProfileScreen() {
               contentContainerStyle={styles.collaboratorsList}
               renderItem={({ item }) => (
                 <Pressable
-                  style={({ pressed }) => [styles.collaboratorItem, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    styles.collaboratorItem,
+                    pressed && styles.pressed,
+                  ]}
                   onPress={() => router.push(`/organizer/${item.organizer.id}`)}
                 >
                   <View style={[styles.collaboratorAvatar, { backgroundColor: colors.card }]}>
@@ -397,7 +590,11 @@ export default function VenueProfileScreen() {
                         contentFit="cover"
                       />
                     ) : (
-                      <Ionicons name="business-outline" size={22} color={colors.textSecondary} />
+                      <Ionicons
+                        name="business-outline"
+                        size={22}
+                        color={colors.textSecondary}
+                      />
                     )}
                   </View>
                   <Text
@@ -412,7 +609,7 @@ export default function VenueProfileScreen() {
           </View>
         )}
 
-        {/* Upcoming Events */}
+        {/* ── Integrated Event Feed ─────────────────────────────────────── */}
         <View style={styles.eventsSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Prossimi eventi</Text>
 
@@ -429,27 +626,49 @@ export default function VenueProfileScreen() {
             </View>
           ) : (
             events.map((event) => {
-              const externalOrganizer =
-                event.organizer_id &&
-                event.organizer_id !== venue.operator_org_id &&
-                organizerMap[event.organizer_id];
+              // Dual-label logic: any event at this venue gets "Ospitato da [Venue]"
+              // If also produced by an external collective, add "• Organizzato da [Organizer]"
+              const externalOrganizerId =
+                event.organizer_id && event.organizer_id !== venue.operator_org_id
+                  ? event.organizer_id
+                  : null;
+              const externalOrganizerName = externalOrganizerId
+                ? organizerMap[externalOrganizerId]
+                : null;
+
               return (
                 <View key={event.id}>
-                  {externalOrganizer ? (
-                    <Pressable
-                      style={[styles.organizerTag, { backgroundColor: colors.card }]}
-                      onPress={() => router.push(`/organizer/${event.organizer_id}`)}
+                  {/* Dual hosting label */}
+                  <View style={[styles.hostingTag, { backgroundColor: colors.card }]}>
+                    <Ionicons
+                      name="location-outline"
+                      size={12}
+                      color={colors.textMuted}
+                    />
+                    <Text
+                      style={[styles.hostingTagText, { color: colors.textSecondary }]}
+                      numberOfLines={1}
                     >
-                      <Ionicons name="person-circle-outline" size={13} color={colors.textMuted} />
-                      <Text style={[styles.organizerTagText, { color: colors.textSecondary }]}>
-                        {'Organizzato da '}
-                        <Text style={{ color: Magenta[500], fontWeight: '600' }}>
-                          {externalOrganizer}
-                        </Text>
+                      <Text>{'Ospitato da '}</Text>
+                      <Text style={{ color: colors.text, fontWeight: '600' }}>
+                        {venue.name}
                       </Text>
-                      <Ionicons name="chevron-forward" size={11} color={colors.textMuted} />
-                    </Pressable>
-                  ) : null}
+                      {externalOrganizerName ? (
+                        <>
+                          <Text>{' • Organizzato da '}</Text>
+                          <Pressable
+                            onPress={() =>
+                              router.push(`/organizer/${externalOrganizerId}`)
+                            }
+                          >
+                            <Text style={{ color: Magenta[500], fontWeight: '600' }}>
+                              {externalOrganizerName}
+                            </Text>
+                          </Pressable>
+                        </>
+                      ) : null}
+                    </Text>
+                  </View>
                   <EventCard
                     event={event}
                     onPress={() => router.push(`/event/${event.id}`)}
@@ -464,10 +683,15 @@ export default function VenueProfileScreen() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  // Hero
   heroContainer: {
     width: '100%',
     justifyContent: 'flex-start',
@@ -476,6 +700,9 @@ const styles = StyleSheet.create({
   headerRow: {
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerButton: {
     width: 44,
@@ -488,6 +715,7 @@ const styles = StyleSheet.create({
   headerButtonPressed: {
     opacity: 0.7,
   },
+  // Avatar / halo
   avatarWrapper: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -507,9 +735,9 @@ const styles = StyleSheet.create({
     borderColor: Magenta[500],
     shadowColor: Magenta[500],
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 14,
-    elevation: 14,
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    elevation: 16,
   },
   avatarInner: {
     width: 96,
@@ -552,6 +780,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: 1,
   },
+  // Loading / error
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -574,6 +803,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     textAlign: 'center',
   },
+  // Name / badge
   nameSection: {
     paddingHorizontal: Spacing.lg,
     paddingTop: 64,
@@ -597,6 +827,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
+  // B2B CTA
   b2bCard: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -611,6 +842,7 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
+  // Status row
   statusRow: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -644,6 +876,7 @@ const styles = StyleSheet.create({
     height: 16,
     marginHorizontal: Spacing.sm,
   },
+  // Info rows
   infoRow: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -658,6 +891,18 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     flex: 1,
   },
+  // Description
+  descriptionCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+  },
+  descriptionText: {
+    fontSize: Typography.sm,
+    lineHeight: 22,
+  },
+  // Amenities
   amenitiesCard: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -686,35 +931,26 @@ const styles = StyleSheet.create({
   amenityLabel: {
     fontSize: Typography.sm,
   },
+  // Map
   mapWrapper: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
   },
-  eventsSection: {
+  // Ambient Gallery
+  gallerySection: {
     paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  sectionTitle: {
-    fontSize: Typography.lg,
-    fontWeight: '700',
-    marginBottom: Spacing.md,
+  galleryList: {
+    paddingTop: Spacing.sm,
+    gap: Spacing.sm,
   },
-  eventsLoadingContainer: {
-    paddingVertical: Spacing.xxxl,
-    alignItems: 'center',
-  },
-  emptyState: {
+  galleryImage: {
+    width: 200,
+    height: 140,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.xxxl,
-    alignItems: 'center',
-    gap: Spacing.md,
   },
-  emptyText: {
-    fontSize: Typography.base,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
+  // Collaborators
   collaboratorsSection: {
     paddingHorizontal: Spacing.lg,
     marginTop: Spacing.sm,
@@ -746,7 +982,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 14,
   },
-  organizerTag: {
+  // Events
+  eventsSection: {
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: Typography.lg,
+    fontWeight: '700',
+    marginBottom: Spacing.md,
+  },
+  eventsLoadingContainer: {
+    paddingVertical: Spacing.xxxl,
+    alignItems: 'center',
+  },
+  emptyState: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xxxl,
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  emptyText: {
+    fontSize: Typography.base,
+  },
+  // Hosting dual-label tag
+  hostingTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -756,8 +1016,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius.lg,
     marginBottom: 2,
   },
-  organizerTagText: {
+  hostingTagText: {
     fontSize: Typography.xs,
     flex: 1,
+  },
+  // Shared
+  pressed: {
+    opacity: 0.7,
   },
 });

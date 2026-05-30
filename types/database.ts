@@ -675,7 +675,14 @@ export type Database = {
         Row: {
           address: string
           created_at: string | null
+          description: string | null
           event_sources: Json | null
+          gallery_urls: string[] | null
+          has_accessibility: boolean | null
+          has_internal_food: boolean | null
+          has_parking: boolean | null
+          has_smoking_area: boolean | null
+          has_wardrobe: boolean | null
           id: string
           image_url: string | null
           lat: number
@@ -690,7 +697,14 @@ export type Database = {
         Insert: {
           address: string
           created_at?: string | null
+          description?: string | null
           event_sources?: Json | null
+          gallery_urls?: string[] | null
+          has_accessibility?: boolean | null
+          has_internal_food?: boolean | null
+          has_parking?: boolean | null
+          has_smoking_area?: boolean | null
+          has_wardrobe?: boolean | null
           id?: string
           image_url?: string | null
           lat: number
@@ -705,7 +719,14 @@ export type Database = {
         Update: {
           address?: string
           created_at?: string | null
+          description?: string | null
           event_sources?: Json | null
+          gallery_urls?: string[] | null
+          has_accessibility?: boolean | null
+          has_internal_food?: boolean | null
+          has_parking?: boolean | null
+          has_smoking_area?: boolean | null
+          has_wardrobe?: boolean | null
           id?: string
           image_url?: string | null
           lat?: number
