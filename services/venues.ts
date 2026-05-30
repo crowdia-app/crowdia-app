@@ -69,3 +69,23 @@ export async function fetchVenueEvents(locationId: string, limit = 20): Promise<
   }
   return (data ?? []) as EventWithStats[];
 }
+
+/**
+ * Search venues/spaces by name or address.
+ */
+export async function searchVenues(query: string, limit = 8): Promise<Location[]> {
+  if (!query.trim()) return [];
+  const q = `%${query.trim()}%`;
+  const { data, error } = await supabase
+    .from('locations')
+    .select('*')
+    .or(`name.ilike.${q},address.ilike.${q}`)
+    .order('name', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error searching venues:', error);
+    return [];
+  }
+  return (data ?? []) as Location[];
+}
