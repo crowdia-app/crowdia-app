@@ -299,7 +299,7 @@ export function AdminFormModal({ visible, title, fields, initialValues, onSubmit
               <View style={styles.deleteConfirmButtons}>
                 <TouchableOpacity
                   style={[styles.deleteConfirmBtn, { backgroundColor: Colors.red[500] }]}
-                  onPress={() => { setShowDeleteConfirm(false); onClose(); onDelete(); }}
+                  onPress={() => { setShowDeleteConfirm(false); onDelete(); }}
                 >
                   <Text style={styles.deleteConfirmBtnText}>Delete</Text>
                 </TouchableOpacity>
