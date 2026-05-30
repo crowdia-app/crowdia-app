@@ -82,3 +82,24 @@ export async function fetchOrganizerEventCount(organizerId: string): Promise<num
   if (error) return 0;
   return count ?? 0;
 }
+
+/**
+ * Search organizers by name, instagram handle, or address.
+ * Returns verified organizers first, then unverified.
+ */
+export async function searchOrganizers(query: string, limit = 8): Promise<Organizer[]> {
+  if (!query.trim()) return [];
+  const q = `%${query.trim()}%`;
+  const { data, error } = await supabase
+    .from('organizers')
+    .select('*')
+    .or(`organization_name.ilike.${q},instagram_handle.ilike.${q},address.ilike.${q}`)
+    .order('is_verified', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error searching organizers:', error);
+    return [];
+  }
+  return (data ?? []) as Organizer[];
+}

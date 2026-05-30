@@ -7,11 +7,14 @@ import {
   ActivityIndicator,
   useColorScheme,
   Pressable,
+  ScrollView,
+  Image,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { EventCard, SearchBar } from '@/components/events';
 import { FilterDrawer, ActiveFiltersRow } from '@/components/filters';
 import { EventsMap } from '@/components/maps';
@@ -27,8 +30,126 @@ import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useInterestsStore } from '@/stores/interestsStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useLoginPrompt } from '@/hooks/useLoginPrompt';
+import { searchOrganizers } from '@/services/organizers';
+import { searchVenues } from '@/services/venues';
 
 type ViewMode = 'list' | 'map';
+
+/** Horizontal row of organizer/venue profile chips shown when search is active */
+function ProfileResultsRow({ query, onPressOrganizer, onPressVenue }: {
+  query: string;
+  onPressOrganizer: (id: string) => void;
+  onPressVenue: (id: string) => void;
+}) {
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
+
+  const { data: organizers = [] } = useQuery({
+    queryKey: ['search-organizers', query],
+    queryFn: () => searchOrganizers(query, 6),
+    enabled: query.trim().length >= 2,
+    staleTime: 30000,
+  });
+
+  const { data: venues = [] } = useQuery({
+    queryKey: ['search-venues', query],
+    queryFn: () => searchVenues(query, 6),
+    enabled: query.trim().length >= 2,
+    staleTime: 30000,
+  });
+
+  if (query.trim().length < 2 || (organizers.length === 0 && venues.length === 0)) {
+    return null;
+  }
+
+  return (
+    <View style={profileStyles.container}>
+      {organizers.length > 0 && (
+        <View style={profileStyles.section}>
+          <Text style={[profileStyles.sectionLabel, { color: colors.textMuted }]}>ORGANIZERS</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={profileStyles.row}>
+            {organizers.map((org) => (
+              <Pressable
+                key={org.id}
+                style={({ pressed }) => [profileStyles.chip, { backgroundColor: colors.card }, pressed && { opacity: 0.7 }]}
+                onPress={() => onPressOrganizer(org.id)}
+              >
+                {org.logo_url ? (
+                  <Image source={{ uri: org.logo_url }} style={profileStyles.chipAvatar} />
+                ) : (
+                  <View style={[profileStyles.chipAvatar, { backgroundColor: Magenta[500] + '22', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="business-outline" size={14} color={Magenta[500]} />
+                  </View>
+                )}
+                <Text style={[profileStyles.chipLabel, { color: colors.text }]} numberOfLines={1}>
+                  {org.organization_name}
+                </Text>
+                {org.is_verified && (
+                  <Ionicons name="checkmark-circle" size={12} color={Magenta[500]} />
+                )}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      {venues.length > 0 && (
+        <View style={profileStyles.section}>
+          <Text style={[profileStyles.sectionLabel, { color: colors.textMuted }]}>SPACES</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={profileStyles.row}>
+            {venues.map((v) => (
+              <Pressable
+                key={v.id}
+                style={({ pressed }) => [profileStyles.chip, { backgroundColor: colors.card }, pressed && { opacity: 0.7 }]}
+                onPress={() => onPressVenue(v.id)}
+              >
+                <View style={[profileStyles.chipAvatar, { backgroundColor: Magenta[500] + '22', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="location-sharp" size={14} color={Magenta[500]} />
+                </View>
+                <Text style={[profileStyles.chipLabel, { color: colors.text }]} numberOfLines={1}>
+                  {v.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const profileStyles = StyleSheet.create({
+  container: { paddingBottom: Spacing.sm },
+  section: { marginBottom: Spacing.xs },
+  sectionLabel: {
+    fontSize: Typography.xxs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  row: { gap: Spacing.sm, paddingHorizontal: Spacing.md },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    maxWidth: 180,
+  },
+  chipAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  chipLabel: {
+    fontSize: Typography.sm,
+    fontWeight: '500',
+    maxWidth: 110,
+  },
+});
 
 export default function EventsFeedScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
@@ -232,6 +353,15 @@ export default function EventsFeedScreen() {
 
       {/* Active filter chips */}
       <ActiveFiltersRow />
+
+      {/* Profile search results (organizers + venues) — shown when search is active */}
+      {searchQuery.trim().length >= 2 && (
+        <ProfileResultsRow
+          query={searchQuery}
+          onPressOrganizer={(id) => router.push(`/organizer/${id}`)}
+          onPressVenue={(id) => router.push(`/venue/${id}`)}
+        />
+      )}
 
       {/* Content */}
       {isLoading ? (
