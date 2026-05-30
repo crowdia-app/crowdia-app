@@ -25,6 +25,7 @@ import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
 import { MapSection } from '@/components/maps/MapSection';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
+import { useAuthStore } from '@/stores/authStore';
 
 const HERO_HEIGHT = 280;
 
@@ -78,6 +79,12 @@ export default function VenueProfileScreen() {
   const insets = useSafeAreaInsets();
   const userLocation = useEventsFilterStore((s) => s.userLocation);
   const [logoError, setLogoError] = useState(false);
+
+  const { userProfile } = useAuthStore();
+  // Show edit button for super-admins and regular admins
+  const canEdit = !!(
+    (userProfile as any)?.is_super_admin || userProfile?.is_admin
+  );
 
   const { data: venue, isLoading: isLoadingVenue } = useQuery({
     queryKey: ['venue', id],
@@ -177,6 +184,12 @@ export default function VenueProfileScreen() {
       />
       <View style={[styles.headerRow, { paddingTop: insets.top + Spacing.sm }]}>
         <HeaderButton onPress={handleBack} icon="arrow-back" />
+        {canEdit && venue && (
+          <HeaderButton
+            onPress={() => router.push(`/admin/spaces/${id}`)}
+            icon="pencil"
+          />
+        )}
       </View>
       {venue && (
         <View style={styles.avatarWrapper}>
@@ -476,6 +489,9 @@ const styles = StyleSheet.create({
   headerRow: {
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerButton: {
     width: 44,
