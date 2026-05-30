@@ -105,7 +105,7 @@ export default function VoiceRequestsScreen() {
     }
   };
 
-  if (!userProfile?.is_admin) {
+  if (!userProfile?.is_admin && !(userProfile as any)?.is_super_admin) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <Stack.Screen options={{ title: 'Voice Requests' }} />
