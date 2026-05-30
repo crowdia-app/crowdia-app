@@ -126,7 +126,7 @@ export default function VoicesAttendingScreen() {
               <VoiceRow
                 key={attendee.id}
                 attendee={attendee}
-                onPress={() => router.push(`/user/${attendee.user_id}`)}
+                onPress={() => router.push(`/voice/${attendee.user_id}`)}
               />
             ))}
           </View>

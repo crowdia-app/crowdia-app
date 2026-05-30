@@ -200,6 +200,84 @@ export async function approveVoiceRequest(
   if (userError) throw userError;
 }
 
+// ─── Voice Profile (ticket #9) ───────────────────────────────────────────────
+
+/**
+ * Full Voice profile data, assembled from users + approved voice_requests.
+ * After migration 20260531000000_voice_profile_fields is applied, these new
+ * social/profile columns will be populated.  Until then they return null.
+ */
+export interface VoiceProfile {
+  user_id: string;
+  username: string | null;
+  display_name: string | null;
+  profile_image_url: string | null;
+  member_since: string | null;
+  bio: string | null;
+  instagram_handle: string | null;
+  /** Available after migration 20260531000000_voice_profile_fields */
+  tiktok_handle: string | null;
+  /** Available after migration 20260531000000_voice_profile_fields */
+  spotify_url: string | null;
+  /** Available after migration 20260531000000_voice_profile_fields */
+  soundcloud_url: string | null;
+  /** Available after migration 20260531000000_voice_profile_fields */
+  taste_tags: string[] | null;
+  /** Available after migration 20260531000000_voice_profile_fields */
+  clout_label: string | null;
+}
+
+/**
+ * Fetch a full Voice profile by user ID.
+ *
+ * After the migration is applied this queries the `voices` view.  Before it,
+ * it falls back to a manual join so the route works on pre-migration DBs.
+ */
+export async function fetchVoiceProfile(userId: string): Promise<VoiceProfile | null> {
+  // Primary path: `voices` view (post-migration)
+  const { data, error } = await supabase
+    .from('voices' as any)
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!error && data) {
+    return data as unknown as VoiceProfile;
+  }
+
+  // Fallback: manual join for pre-migration databases
+  const { data: user, error: userErr } = await supabase
+    .from('users')
+    .select('id, username, display_name, profile_image_url, bio, is_voice, created_at')
+    .eq('id', userId)
+    .eq('is_voice', true)
+    .maybeSingle();
+
+  if (userErr || !user) return null;
+
+  const { data: req } = await supabase
+    .from('voice_requests')
+    .select('instagram_handle')
+    .eq('user_id', userId)
+    .eq('status', 'approved')
+    .maybeSingle();
+
+  return {
+    user_id: (user as any).id,
+    username: (user as any).username,
+    display_name: (user as any).display_name,
+    profile_image_url: (user as any).profile_image_url,
+    member_since: (user as any).created_at,
+    bio: (user as any).bio,
+    instagram_handle: req?.instagram_handle ?? null,
+    tiktok_handle: null,
+    spotify_url: null,
+    soundcloud_url: null,
+    taste_tags: null,
+    clout_label: null,
+  };
+}
+
 /** Reject a voice request */
 export async function rejectVoiceRequest(
   requestId: string,
