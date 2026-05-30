@@ -60,6 +60,7 @@ interface ExtractionStats {
   eventsSkippedPast: number;
   eventsSkippedListingUrl: number;
   eventsSkippedNonPalermo: number;
+  eventsSkippedApproximateDate: number;
   eventsFailed: number;
   locationsCreated: number;
   organizersCreated: number;
@@ -336,6 +337,8 @@ async function enrichEventsFromDetailPages(
           );
           event.start_time = normalizedStart;
         }
+        // Clear the approximate flag — detail page provided a date (may or may not be day=01 itself)
+        event.date_is_approximate = false;
         if (meta.endDate) {
           const normalizedEnd = normalizePalermoDatetime(meta.endDate);
           if (normalizedEnd) event.end_time = normalizedEnd;
@@ -421,6 +424,7 @@ export async function runExtractionAgent(
     eventsSkippedPast: 0,
     eventsSkippedListingUrl: 0,
     eventsSkippedNonPalermo: 0,
+    eventsSkippedApproximateDate: 0,
     eventsFailed: 0,
     locationsCreated: 0,
     organizersCreated: 0,
@@ -899,6 +903,13 @@ export async function runExtractionAgent(
           continue;
         }
 
+        // Skip events where only a month/year date is known (no specific day found)
+        if (extracted.date_is_approximate) {
+          console.log(`Skipping approximate-date event: ${extracted.title} (${extracted.start_time})`);
+          stats.eventsSkippedApproximateDate++;
+          continue;
+        }
+
         // Skip events with listing page URLs instead of specific event URLs
         // But allow trusted sources that only have listing pages
         if (isListingPageUrl(extracted.detail_url)) {
@@ -1058,6 +1069,7 @@ export async function runExtractionAgent(
         "Past Events Skipped": stats.eventsSkippedPast,
         "Listing URL Skipped": stats.eventsSkippedListingUrl,
         "Non-Palermo Skipped": stats.eventsSkippedNonPalermo,
+        "Approximate Date Skipped": stats.eventsSkippedApproximateDate,
         "Events Failed": stats.eventsFailed,
         "Rate Limit Errors": stats.rateLimitErrors,
         "Locations Created": stats.locationsCreated,
@@ -1101,6 +1113,9 @@ export async function runExtractionAgent(
     await logger.info(`Listing URL skipped: ${stats.eventsSkippedListingUrl}`);
     if (stats.eventsSkippedNonPalermo > 0) {
       await logger.warn(`Non-Palermo events skipped: ${stats.eventsSkippedNonPalermo}`);
+    }
+    if (stats.eventsSkippedApproximateDate > 0) {
+      await logger.warn(`Approximate date skipped: ${stats.eventsSkippedApproximateDate}`);
     }
     await logger.info(`Failed: ${stats.eventsFailed}`);
 

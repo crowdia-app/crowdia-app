@@ -90,6 +90,8 @@ export interface ExtractedEvent {
   image_url?: string;
   detail_url: string;
   category?: string;
+  /** True when only month/year is known; a specific day could not be found. */
+  date_is_approximate?: boolean;
 }
 
 // Zod schema for validation
@@ -105,6 +107,7 @@ const ExtractedEventSchema = z.object({
   image_url: z.string().optional().nullable(),
   detail_url: z.string().min(1),
   category: z.string().optional().nullable(),
+  date_is_approximate: z.boolean().optional().nullable(),
 });
 
 const ExtractedEventsResponseSchema = z.object({
@@ -150,6 +153,7 @@ const eventSchema = {
           image_url: { type: "string" },
           detail_url: { type: "string", description: "The specific URL to this event's detail page (NOT a listing page)" },
           category: { type: "string", description: "Event category from the standard list", enum: STANDARD_CATEGORIES },
+          date_is_approximate: { type: "boolean", description: "true if only month/year is known (e.g. 'March 2026'), false or omit when a specific day is known" },
         },
         required: ["title", "start_time", "detail_url", "category"],
       },
@@ -261,6 +265,7 @@ EXTRACTION RULES:
 - Convert dates to ISO 8601 format (YYYY-MM-DDTHH:MM:SS)
 - If no specific time is given, use 21:00 as default for evening events, 10:00 for morning events
 - Only include events with clear dates (skip "coming soon" or TBA events)
+- DATE PRECISION: If only a month/year is known (e.g. "marzo 2026", "this spring") with no specific day, set date_is_approximate=true and use the 1st of that month as a placeholder start_time. If a specific day is known, set date_is_approximate=false (or omit).
 
 IMAGE EXTRACTION (IMPORTANT):
 - The content contains pre-extracted event data in this format:
