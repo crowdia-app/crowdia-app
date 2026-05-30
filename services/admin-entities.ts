@@ -180,9 +180,14 @@ export async function syncOrganizerSources(
 
   if (rows.length === 0) return;
 
+  // Upsert using (organizer_id, type) as the conflict target — this matches the partial
+  // unique index `uq_event_sources_org_type` added in migration 20260526100000.
+  // Using `url` as the conflict column caused failures when the DB trigger had already
+  // inserted the row on organizer creation, because the UPDATE then violated the
+  // `event_sources_owner_check` constraint.
   const { error } = await supabase
     .from('event_sources')
-    .upsert(rows, { onConflict: 'url' });
+    .upsert(rows, { onConflict: 'organizer_id,type' });
 
   if (error) {
     console.error('Failed to sync organizer event sources:', error);
