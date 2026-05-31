@@ -51,7 +51,7 @@ const filters: FilterOption[] = [
 
 const formFields: FormField[] = [
   { key: 'organization_name', label: 'Organization Name', type: 'text', required: true },
-  { key: 'logo_url', label: 'Logo / Profile Image', type: 'image', imageBucket: 'organizer-images', imageFolder: 'logos' },
+  { key: 'logo_url', label: 'Logo URL', type: 'text' },
   { key: 'email', label: 'Email', type: 'text' },
   { key: 'phone', label: 'Phone', type: 'text' },
   { key: 'instagram_handle', label: 'Instagram Handle', type: 'text' },
@@ -86,21 +86,26 @@ export default function OrganizersScreen() {
       } else {
         setIsLoading(true);
       }
-      const result = await fetchEntityList({
-        table: 'organizers',
-        search,
-        searchColumns: SEARCH_COLUMNS,
-        filters: activeFilters,
-        sortBy,
-        sortOrder,
-        page,
-        pageSize: PAGE_SIZE,
-      });
-      setData(result.data);
-      setTotalPages(result.totalPages);
-      setTotalCount(result.count);
-      setIsLoading(false);
-      setIsRefreshing(false);
+      try {
+        const result = await fetchEntityList({
+          table: 'organizers',
+          search,
+          searchColumns: SEARCH_COLUMNS,
+          filters: activeFilters,
+          sortBy,
+          sortOrder,
+          page,
+          pageSize: PAGE_SIZE,
+        });
+        setData(result.data);
+        setTotalPages(result.totalPages);
+        setTotalCount(result.count);
+      } catch (err) {
+        console.error('Failed to load organizers:', err);
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     },
     [search, sortBy, sortOrder, page, activeFilters]
   );
