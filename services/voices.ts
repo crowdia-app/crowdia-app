@@ -290,6 +290,79 @@ export async function fetchVoiceProfile(userId: string): Promise<VoiceProfile | 
   };
 }
 
+// ─── Vibe Notes (ticket: Voice Vibe Notes) ───────────────────────────────────
+
+export interface VibeNote {
+  id: string;
+  user_id: string;
+  event_id: string | null;
+  location_id: string | null;
+  text: string;
+  created_at: string;
+  author: {
+    username: string | null;
+    display_name: string | null;
+    profile_image_url: string | null;
+  } | null;
+}
+
+export async function fetchVibeNotesByEvent(eventId: string): Promise<VibeNote[]> {
+  const { data, error } = await supabase
+    .from('voice_vibe_notes' as any)
+    .select('*, author:user_id(username, display_name, profile_image_url)')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to fetch vibe notes for event:', error);
+    return [];
+  }
+  return (data || []) as unknown as VibeNote[];
+}
+
+export async function fetchVibeNotesByVenue(locationId: string): Promise<VibeNote[]> {
+  const { data, error } = await supabase
+    .from('voice_vibe_notes' as any)
+    .select('*, author:user_id(username, display_name, profile_image_url)')
+    .eq('location_id', locationId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to fetch vibe notes for venue:', error);
+    return [];
+  }
+  return (data || []) as unknown as VibeNote[];
+}
+
+export async function createVibeNote(
+  userId: string,
+  text: string,
+  opts: { eventId?: string; locationId?: string }
+): Promise<VibeNote> {
+  const { data, error } = await supabase
+    .from('voice_vibe_notes' as any)
+    .insert({
+      user_id: userId,
+      text,
+      event_id: opts.eventId ?? null,
+      location_id: opts.locationId ?? null,
+    })
+    .select('*, author:user_id(username, display_name, profile_image_url)')
+    .single();
+
+  if (error) throw error;
+  return data as unknown as VibeNote;
+}
+
+export async function deleteVibeNote(noteId: string): Promise<void> {
+  const { error } = await supabase
+    .from('voice_vibe_notes' as any)
+    .delete()
+    .eq('id', noteId);
+
+  if (error) throw error;
+}
+
 /** Reject a voice request */
 export async function rejectVoiceRequest(
   requestId: string,

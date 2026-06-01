@@ -3,12 +3,15 @@ import {
   Animated,
   Easing,
   FlatList,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useColorScheme,
 } from 'react-native';
@@ -22,12 +25,15 @@ import * as Haptics from 'expo-haptics';
 
 import { fetchVenueById, fetchVenueEvents, fetchVenueCollaborators } from '@/services/venues';
 import { fetchOrganizerById } from '@/services/organizers';
+import { fetchVibeNotesByVenue, createVibeNote } from '@/services/voices';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { EventCard } from '@/components/events/EventCard';
 import { MapSection } from '@/components/maps/MapSection';
+import { VibeNoteBubble } from '@/components/ui/VibeNoteBubble';
 import { useEventsFilterStore } from '@/stores/eventsFilterStore';
 import { useAuthStore } from '@/stores/authStore';
+import { showAlert } from '@/utils/alert';
 
 const HERO_HEIGHT = 280;
 
@@ -166,9 +172,13 @@ export default function VenueProfileScreen() {
   const userLocation = useEventsFilterStore((s) => s.userLocation);
   const [avatarError, setAvatarError] = useState(false);
 
-  const { userProfile } = useAuthStore();
+  const { user, userProfile } = useAuthStore();
   // Show edit button for super-admins and regular admins
   const canEdit = !!((userProfile as any)?.is_super_admin || userProfile?.is_admin);
+
+  const [showVibeNoteModal, setShowVibeNoteModal] = useState(false);
+  const [vibeNoteText, setVibeNoteText] = useState('');
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
 
   // -------------------------------------------------------------------------
   // Data fetching
@@ -196,6 +206,13 @@ export default function VenueProfileScreen() {
     queryKey: ['venue-collaborators', id],
     queryFn: () => fetchVenueCollaborators(id!),
     enabled: !!id,
+  });
+
+  const { data: vibeNotes = [], refetch: refetchVibeNotes } = useQuery({
+    queryKey: ['venue-vibe-notes', id],
+    queryFn: () => fetchVibeNotesByVenue(id!),
+    enabled: !!id,
+    staleTime: 5 * 60_000,
   });
 
   // -------------------------------------------------------------------------
@@ -271,6 +288,23 @@ export default function VenueProfileScreen() {
   const handleOpenOrganizer = () => {
     if (!venue?.operator_org_id) return;
     router.push(`/organizer/${venue.operator_org_id}`);
+  };
+
+  const handleSubmitVibeNote = async () => {
+    if (!user?.id || !id) return;
+    const trimmed = vibeNoteText.trim();
+    if (!trimmed) return;
+    setIsSubmittingNote(true);
+    try {
+      await createVibeNote(user.id, trimmed, { locationId: id });
+      setVibeNoteText('');
+      setShowVibeNoteModal(false);
+      refetchVibeNotes();
+    } catch (err: any) {
+      showAlert('Errore', err?.message ?? 'Impossibile salvare la nota.');
+    } finally {
+      setIsSubmittingNote(false);
+    }
   };
 
   // -------------------------------------------------------------------------
@@ -609,6 +643,32 @@ export default function VenueProfileScreen() {
           </View>
         )}
 
+        {/* ── Vibe Notes by Voices ──────────────────────────────────────── */}
+        {(vibeNotes.length > 0 || (userProfile as any)?.is_voice) ? (
+          <View style={styles.section}>
+            <View style={styles.vibeNotesHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Note dei Voices</Text>
+              {(userProfile as any)?.is_voice ? (
+                <Pressable
+                  style={({ pressed }) => [styles.addNoteButton, { borderColor: Magenta[500] }, pressed && { opacity: 0.7 }]}
+                  onPress={() => setShowVibeNoteModal(true)}
+                >
+                  <Ionicons name="add" size={16} color={Magenta[500]} />
+                  <Text style={[styles.addNoteText, { color: Magenta[500] }]}>Aggiungi</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {vibeNotes.map((note) => (
+              <VibeNoteBubble key={note.id} note={note} />
+            ))}
+            {vibeNotes.length === 0 ? (
+              <Text style={[styles.emptyNotesText, { color: colors.textSecondary }]}>
+                Sii il primo a lasciare una nota su questo spazio.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* ── Integrated Event Feed ─────────────────────────────────────── */}
         <View style={styles.eventsSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Prossimi eventi</Text>
@@ -679,6 +739,50 @@ export default function VenueProfileScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Vibe Note compose modal */}
+      <Modal
+        visible={showVibeNoteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowVibeNoteModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowVibeNoteModal(false)} />
+          <View style={[styles.vibeNoteModal, { backgroundColor: colors.card }]}>
+            <Text style={[styles.vibeNoteModalTitle, { color: colors.text }]}>Aggiungi una nota</Text>
+            <TextInput
+              style={[styles.vibeNoteInput, { color: colors.text, borderColor: colors.divider, backgroundColor: colors.background }]}
+              placeholder="Cosa rende speciale questo spazio? (max 150 caratteri)"
+              placeholderTextColor={colors.textMuted}
+              value={vibeNoteText}
+              onChangeText={(t) => setVibeNoteText(t.slice(0, 150))}
+              multiline
+              maxLength={150}
+              autoFocus
+            />
+            <Text style={[styles.vibeNoteCharCount, { color: colors.textMuted }]}>{vibeNoteText.length}/150</Text>
+            <View style={styles.vibeNoteActions}>
+              <Pressable
+                style={({ pressed }) => [styles.vibeNoteCancelBtn, { borderColor: colors.divider }, pressed && { opacity: 0.7 }]}
+                onPress={() => { setShowVibeNoteModal(false); setVibeNoteText(''); }}
+              >
+                <Text style={[styles.vibeNoteCancelText, { color: colors.textSecondary }]}>Annulla</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.vibeNoteSubmitBtn, { backgroundColor: Magenta[500] }, pressed && { opacity: 0.85 }, (!vibeNoteText.trim() || isSubmittingNote) && { opacity: 0.5 }]}
+                onPress={handleSubmitVibeNote}
+                disabled={!vibeNoteText.trim() || isSubmittingNote}
+              >
+                <Text style={styles.vibeNoteSubmitText}>Pubblica</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -1023,5 +1127,92 @@ const styles = StyleSheet.create({
   // Shared
   pressed: {
     opacity: 0.7,
+  },
+  // Vibe Notes
+  section: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
+  },
+  vibeNotesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  addNoteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  addNoteText: {
+    fontSize: Typography.xs,
+    fontWeight: '600',
+  },
+  emptyNotesText: {
+    fontSize: Typography.sm,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: Spacing.md,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  vibeNoteModal: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  vibeNoteModalTitle: {
+    fontSize: Typography.lg,
+    fontWeight: '700',
+  },
+  vibeNoteInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    minHeight: 80,
+    fontSize: Typography.base,
+    textAlignVertical: 'top',
+  },
+  vibeNoteCharCount: {
+    fontSize: Typography.xs,
+    textAlign: 'right',
+  },
+  vibeNoteActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    justifyContent: 'flex-end',
+  },
+  vibeNoteCancelBtn: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  vibeNoteCancelText: {
+    fontSize: Typography.base,
+    fontWeight: '600',
+  },
+  vibeNoteSubmitBtn: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  vibeNoteSubmitText: {
+    fontSize: Typography.base,
+    fontWeight: '700',
+    color: '#fff',
   },
 });
