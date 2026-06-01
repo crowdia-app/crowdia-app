@@ -49,6 +49,7 @@ async function main() {
   const { generateMissingVibeTags } = await import("./generate-vibe-tags");
   const { generateSimilarEvents } = await import("./generate-similar-events");
   const { generateVoiceTasteTags } = await import("./generate-voice-taste-tags");
+  const { computeVoiceBadges } = await import("./compute-voice-badges");
 
   // Parse command line arguments
   const args = process.argv.slice(2);
@@ -102,12 +103,15 @@ async function main() {
       console.log("\n--- Pre-computing similar event IDs ---\n");
       await generateSimilarEvents();
 
-      // Weekly: generate AI Taste Tags for Voice profiles (runs every Monday or when forced)
+      // Weekly: generate AI Taste Tags + compute gamified badges for Voice profiles
       const isMonday = new Date().getDay() === 1;
       const forceVoiceTags = args.includes("--voice-tags");
       if (isMonday || forceVoiceTags) {
         console.log("\n--- Generating Voice Taste Tags ---\n");
         await generateVoiceTasteTags();
+
+        console.log("\n--- Computing Voice Impact Badges ---\n");
+        await computeVoiceBadges();
       }
     }
 

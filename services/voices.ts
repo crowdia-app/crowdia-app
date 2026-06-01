@@ -225,6 +225,14 @@ export interface VoiceProfile {
   taste_tags: string[] | null;
   /** Available after migration 20260531000000_voice_profile_fields */
   clout_label: string | null;
+  /** Available after migration 20260531200000_voice_asymmetric_impact_matrix */
+  voice_badges: string[] | null;
+  /** Available after migration 20260531200000_voice_asymmetric_impact_matrix */
+  momentum_text: string | null;
+  /** Available after migration 20260531200000_voice_asymmetric_impact_matrix — owner/partner only */
+  urban_impact_count: number | null;
+  /** Available after migration 20260531200000_voice_asymmetric_impact_matrix — owner/partner only */
+  people_moved_count: number | null;
 }
 
 /**
@@ -275,6 +283,10 @@ export async function fetchVoiceProfile(userId: string): Promise<VoiceProfile | 
     soundcloud_url: null,
     taste_tags: null,
     clout_label: null,
+    voice_badges: null,
+    momentum_text: null,
+    urban_impact_count: null,
+    people_moved_count: null,
   };
 }
 

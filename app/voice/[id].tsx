@@ -41,6 +41,7 @@ import * as Haptics from 'expo-haptics';
 
 import { fetchVoiceProfile, getVoiceEvents, type VoiceEventEntry } from '@/services/voices';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
+import { useAuthStore } from '@/stores/authStore';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
 import { getProxiedImageUrl } from '@/utils/imageProxy';
 import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlaceholder';
@@ -51,6 +52,8 @@ import { CategoryImagePlaceholder } from '@/components/ui/CategoryImagePlacehold
 const VOICES_AURA = '#8B00FF';
 const VOICES_AURA_DIM = '#8B00FF40';
 const HERO_HEIGHT = 260;
+/** Gold color for gamified badge pills */
+const BADGE_GOLD = '#D4AF37';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -167,6 +170,113 @@ function SocialConnector({
   );
 }
 
+/** Single gamified badge pill */
+function BadgePill({ label }: { label: string }) {
+  return (
+    <View style={badgeStyles.pill}>
+      <Ionicons name="ribbon-outline" size={11} color={BADGE_GOLD} />
+      <Text style={badgeStyles.pillText}>{label}</Text>
+    </View>
+  );
+}
+
+/** Momentum indicator text pill */
+function MomentumPill({ text }: { text: string }) {
+  return (
+    <View style={badgeStyles.momentumPill}>
+      <Text style={badgeStyles.momentumText}>{text}</Text>
+    </View>
+  );
+}
+
+/** Private Media Kit stat row */
+function MediaKitStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: number;
+}) {
+  return (
+    <View style={badgeStyles.statRow}>
+      <View style={badgeStyles.statIcon}>
+        <Ionicons name={icon as any} size={16} color={VOICES_AURA} />
+      </View>
+      <Text style={badgeStyles.statLabel}>{label}</Text>
+      <Text style={badgeStyles.statValue}>{value.toLocaleString('it-IT')}</Text>
+    </View>
+  );
+}
+
+/**
+ * Asymmetric Impact Matrix section.
+ * Public: badge grid + momentum pill.
+ * Private (owner or verified organizer): Digital Media Kit card.
+ */
+function AsymmetricImpactSection({
+  badges,
+  momentumText,
+  urbanImpact,
+  peopleMoved,
+  isPrivileged,
+}: {
+  badges: string[];
+  momentumText: string | null;
+  urbanImpact: number | null;
+  peopleMoved: number | null;
+  isPrivileged: boolean;
+}) {
+  const hasBadges = badges.length > 0;
+  const hasPublic = hasBadges || !!momentumText;
+  const hasPrivate = isPrivileged && (urbanImpact !== null || peopleMoved !== null);
+
+  if (!hasPublic && !hasPrivate) return null;
+
+  return (
+    <View style={badgeStyles.section}>
+      {hasPublic && (
+        <>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="ribbon-outline" size={13} color={BADGE_GOLD} />
+            <Text style={styles.sectionLabel}>IMPACT</Text>
+          </View>
+
+          {hasBadges && (
+            <View style={badgeStyles.badgesRow}>
+              {badges.map((b, i) => (
+                <BadgePill key={i} label={b} />
+              ))}
+            </View>
+          )}
+
+          {momentumText && <MomentumPill text={momentumText} />}
+        </>
+      )}
+
+      {hasPrivate && (
+        <View style={badgeStyles.mediaKitCard}>
+          <View style={badgeStyles.mediaKitHeader}>
+            <Ionicons name="lock-closed-outline" size={12} color={VOICES_AURA} />
+            <Text style={badgeStyles.mediaKitTitle}>MEDIA KIT — PRIVATO</Text>
+          </View>
+          <MediaKitStat
+            icon="flame-outline"
+            label="Urban Impact"
+            value={urbanImpact ?? 0}
+          />
+          <MediaKitStat
+            icon="people-outline"
+            label="People Moved"
+            value={peopleMoved ?? 0}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
 /** Past Nights carousel item */
 function PastNightItem({
   entry,
@@ -224,6 +334,8 @@ export default function VoiceProfileScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
+
+  const { user, userProfile } = useAuthStore();
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['voice-profile', id],
@@ -297,6 +409,12 @@ export default function VoiceProfileScreen() {
 
   const tasteTags = profile?.taste_tags ?? [];
   const displayName = profile?.display_name || profile?.username || 'Voice';
+
+  /** Profile owner or admin — can see the private Media Kit layer */
+  const isPrivileged =
+    (user?.id != null && user.id === profile?.user_id) ||
+    !!(userProfile as any)?.is_admin ||
+    !!(userProfile as any)?.is_super_admin;
 
   // ── Loading / not-found states ────────────────────────────────────────────
 
@@ -432,6 +550,15 @@ export default function VoiceProfileScreen() {
 
         {/* ───────────────────── AI TASTE TAGS ─────────────────── */}
         <TasteTagsSection tags={tasteTags} />
+
+        {/* ───────────────────── ASYMMETRIC IMPACT MATRIX ─────── */}
+        <AsymmetricImpactSection
+          badges={profile?.voice_badges ?? []}
+          momentumText={profile?.momentum_text ?? null}
+          urbanImpact={profile?.urban_impact_count ?? null}
+          peopleMoved={profile?.people_moved_count ?? null}
+          isPrivileged={isPrivileged}
+        />
 
         {/* ───────────────────── PAST NIGHTS CAROUSEL ──────────── */}
         {pastNights.length > 0 ? (
@@ -725,5 +852,93 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     textAlign: 'center',
     paddingBottom: Spacing.md,
+  },
+});
+
+const badgeStyles = StyleSheet.create({
+  section: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: BADGE_GOLD + '60',
+  },
+  pillText: {
+    fontSize: Typography.xs,
+    fontWeight: '700',
+    color: BADGE_GOLD,
+    letterSpacing: 0.3,
+  },
+  momentumPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  momentumText: {
+    fontSize: Typography.sm,
+    color: 'rgba(255,255,255,0.80)',
+    fontWeight: '500',
+  },
+  mediaKitCard: {
+    marginTop: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(139,0,255,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: VOICES_AURA + '40',
+    gap: Spacing.sm,
+  },
+  mediaKitHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.xs,
+  },
+  mediaKitTitle: {
+    fontSize: Typography.xs,
+    fontWeight: '700',
+    color: VOICES_AURA,
+    letterSpacing: 0.9,
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  statIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: VOICES_AURA_DIM,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statLabel: {
+    flex: 1,
+    fontSize: Typography.sm,
+    color: 'rgba(255,255,255,0.70)',
+  },
+  statValue: {
+    fontSize: Typography.base,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
