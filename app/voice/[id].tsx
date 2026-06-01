@@ -27,19 +27,30 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  TextInput,
+  Modal,
+  Alert,
   useColorScheme,
   Linking,
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { fetchVoiceProfile, getVoiceEvents, type VoiceEventEntry } from '@/services/voices';
+import {
+  fetchVoiceProfile,
+  getVoiceEvents,
+  fetchCuratedListsByVoice,
+  createCuratedList,
+  deleteCuratedList,
+  type VoiceEventEntry,
+  type VoiceCuratedList,
+} from '@/services/voices';
 import { Colors, Spacing, BorderRadius, Typography, Magenta } from '@/constants/theme';
 import { useAuthStore } from '@/stores/authStore';
 import { StaticGlowLogo } from '@/components/ui/glowing-logo';
@@ -143,6 +154,111 @@ function TasteTagsSection({ tags }: { tags: string[] }) {
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+/** Single curated list tile */
+function CuratedListTile({
+  list,
+  onPress,
+}: {
+  list: VoiceCuratedList;
+  onPress: () => void;
+}) {
+  const [imgError, setImgError] = useState(false);
+  const imgUrl = list.cover_image_url;
+  const hasImage = !!imgUrl && !imgError;
+
+  return (
+    <Pressable
+      style={({ pressed }) => [curatedStyles.tile, { opacity: pressed ? 0.8 : 1 }]}
+      onPress={onPress}
+    >
+      <View style={curatedStyles.tileCover}>
+        {hasImage ? (
+          <Image
+            source={{ uri: imgUrl! }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <View style={curatedStyles.tileCoverFallback}>
+            <Ionicons name="bookmark" size={28} color={VOICES_AURA} />
+          </View>
+        )}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.75)']}
+          style={curatedStyles.tileGradient}
+        />
+        <View style={curatedStyles.tileLabel}>
+          <Text style={curatedStyles.tileName} numberOfLines={2}>
+            {list.name}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+/** Curated Lists section with optional "add" button for Voice owners */
+function CuratedListsSection({
+  lists,
+  isOwner,
+  onPressItem,
+  onAddList,
+}: {
+  lists: VoiceCuratedList[];
+  isOwner: boolean;
+  onPressItem: (list: VoiceCuratedList) => void;
+  onAddList: () => void;
+}) {
+  if (lists.length === 0 && !isOwner) return null;
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeaderRow}>
+        <Ionicons name="bookmark-outline" size={13} color={VOICES_AURA} />
+        <Text style={styles.sectionLabel}>COLLEZIONI CURATE</Text>
+        {isOwner ? (
+          <Pressable
+            style={({ pressed }) => [curatedStyles.addBtn, { opacity: pressed ? 0.7 : 1 }]}
+            onPress={onAddList}
+          >
+            <Ionicons name="add" size={16} color={VOICES_AURA} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {lists.length === 0 ? (
+        <Pressable
+          style={({ pressed }) => [curatedStyles.emptyCreate, { opacity: pressed ? 0.7 : 1 }]}
+          onPress={onAddList}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={VOICES_AURA} />
+          <Text style={curatedStyles.emptyCreateText}>Crea la tua prima collezione</Text>
+        </Pressable>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={curatedStyles.tilesRow}
+        >
+          {lists.map((list) => (
+            <CuratedListTile key={list.id} list={list} onPress={() => onPressItem(list)} />
+          ))}
+          {isOwner ? (
+            <Pressable
+              style={({ pressed }) => [curatedStyles.addTile, { opacity: pressed ? 0.7 : 1 }]}
+              onPress={onAddList}
+            >
+              <Ionicons name="add" size={28} color={VOICES_AURA} />
+              <Text style={curatedStyles.addTileText}>Nuova</Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -334,8 +450,14 @@ export default function VoiceProfileScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
   const { user, userProfile } = useAuthStore();
+
+  const [showCreateList, setShowCreateList] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [newListDesc, setNewListDesc] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['voice-profile', id],
@@ -346,6 +468,12 @@ export default function VoiceProfileScreen() {
   const { data: voiceEvents = [] } = useQuery({
     queryKey: ['voice-events', id],
     queryFn: () => getVoiceEvents(id!),
+    enabled: !!id && !!profile,
+  });
+
+  const { data: curatedLists = [] } = useQuery({
+    queryKey: ['curated-lists', id],
+    queryFn: () => fetchCuratedListsByVoice(id!),
     enabled: !!id && !!profile,
   });
 
@@ -415,6 +543,25 @@ export default function VoiceProfileScreen() {
     (user?.id != null && user.id === profile?.user_id) ||
     !!(userProfile as any)?.is_admin ||
     !!(userProfile as any)?.is_super_admin;
+
+  /** Profile owner — can manage curated lists */
+  const isOwner = user?.id != null && user.id === profile?.user_id;
+
+  const handleCreateList = async () => {
+    if (!newListName.trim() || !user?.id) return;
+    setIsCreating(true);
+    try {
+      await createCuratedList(user.id, newListName.trim(), newListDesc.trim() || undefined);
+      await queryClient.invalidateQueries({ queryKey: ['curated-lists', id] });
+      setShowCreateList(false);
+      setNewListName('');
+      setNewListDesc('');
+    } catch (e) {
+      Alert.alert('Errore', 'Impossibile creare la collezione. Riprova.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   // ── Loading / not-found states ────────────────────────────────────────────
 
@@ -550,6 +697,14 @@ export default function VoiceProfileScreen() {
 
         {/* ───────────────────── AI TASTE TAGS ─────────────────── */}
         <TasteTagsSection tags={tasteTags} />
+
+        {/* ───────────────────── CURATED LISTS ─────────────────── */}
+        <CuratedListsSection
+          lists={curatedLists as unknown as VoiceCuratedList[]}
+          isOwner={isOwner}
+          onPressItem={(list) => router.push(`/voice/curated-list/${list.id}`)}
+          onAddList={() => setShowCreateList(true)}
+        />
 
         {/* ───────────────────── ASYMMETRIC IMPACT MATRIX ─────── */}
         <AsymmetricImpactSection
@@ -940,5 +1095,93 @@ const badgeStyles = StyleSheet.create({
     fontSize: Typography.base,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+});
+
+const curatedStyles = StyleSheet.create({
+  tile: {
+    width: 140,
+    marginRight: Spacing.md,
+  },
+  tileCover: {
+    width: 140,
+    height: 160,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: VOICES_AURA_DIM,
+  },
+  tileCoverFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: VOICES_AURA_DIM,
+  },
+  tileGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+  },
+  tileLabel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: Spacing.sm,
+  },
+  tileName: {
+    fontSize: Typography.sm,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: Typography.sm * 1.3,
+  },
+  tilesRow: {
+    paddingBottom: Spacing.xs,
+  },
+  addTile: {
+    width: 100,
+    height: 160,
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: VOICES_AURA + '60',
+    backgroundColor: VOICES_AURA_DIM,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    marginRight: Spacing.md,
+  },
+  addTileText: {
+    fontSize: Typography.xs,
+    fontWeight: '600',
+    color: VOICES_AURA,
+  },
+  addBtn: {
+    marginLeft: 'auto' as any,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: VOICES_AURA_DIM,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: VOICES_AURA + '60',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCreate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: VOICES_AURA + '60',
+    backgroundColor: VOICES_AURA_DIM,
+    alignSelf: 'flex-start',
+  },
+  emptyCreateText: {
+    fontSize: Typography.sm,
+    fontWeight: '600',
+    color: VOICES_AURA,
   },
 });

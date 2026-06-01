@@ -363,6 +363,120 @@ export async function deleteVibeNote(noteId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ─── Curated Lists (Collezioni Curate) ──────────────────────────────────────
+
+export interface VoiceCuratedList {
+  id: string;
+  voice_user_id: string;
+  name: string;
+  description: string | null;
+  cover_image_url: string | null;
+  created_at: string;
+  updated_at: string;
+  item_count?: number;
+}
+
+export interface VoiceListItem {
+  id: string;
+  list_id: string;
+  event_id: string | null;
+  location_id: string | null;
+  position: number;
+  created_at: string;
+  event?: {
+    id: string;
+    title: string;
+    event_start_time: string;
+    cover_image_url: string | null;
+    location_name: string | null;
+    category_slug: string | null;
+  } | null;
+  location?: {
+    id: string;
+    name: string;
+    address: string | null;
+    venue_type: string | null;
+    image_url: string | null;
+  } | null;
+}
+
+export async function fetchCuratedListsByVoice(voiceUserId: string): Promise<VoiceCuratedList[]> {
+  const { data, error } = await supabase
+    .from('voice_curated_lists' as any)
+    .select('*')
+    .eq('voice_user_id', voiceUserId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to fetch curated lists:', error);
+    return [];
+  }
+  return (data || []) as unknown as VoiceCuratedList[];
+}
+
+export async function fetchCuratedListItems(listId: string): Promise<VoiceListItem[]> {
+  const { data, error } = await supabase
+    .from('voice_list_items' as any)
+    .select(`
+      *,
+      event:event_id(id, title, event_start_time, cover_image_url, location_name, category_slug),
+      location:location_id(id, name, address, venue_type, image_url)
+    `)
+    .eq('list_id', listId)
+    .order('position', { ascending: true });
+
+  if (error) {
+    console.error('Failed to fetch curated list items:', error);
+    return [];
+  }
+  return (data || []) as unknown as VoiceListItem[];
+}
+
+export async function createCuratedList(
+  voiceUserId: string,
+  name: string,
+  description?: string
+): Promise<VoiceCuratedList> {
+  const { data, error } = await supabase
+    .from('voice_curated_lists' as any)
+    .insert({ voice_user_id: voiceUserId, name, description: description ?? null })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as unknown as VoiceCuratedList;
+}
+
+export async function deleteCuratedList(listId: string): Promise<void> {
+  const { error } = await supabase
+    .from('voice_curated_lists' as any)
+    .delete()
+    .eq('id', listId);
+  if (error) throw error;
+}
+
+export async function addEventToList(listId: string, eventId: string, position: number): Promise<void> {
+  const { error } = await supabase
+    .from('voice_list_items' as any)
+    .insert({ list_id: listId, event_id: eventId, location_id: null, position });
+  if (error) throw error;
+}
+
+export async function addLocationToList(listId: string, locationId: string, position: number): Promise<void> {
+  const { error } = await supabase
+    .from('voice_list_items' as any)
+    .insert({ list_id: listId, location_id: locationId, event_id: null, position });
+  if (error) throw error;
+}
+
+export async function removeListItem(itemId: string): Promise<void> {
+  const { error } = await supabase
+    .from('voice_list_items' as any)
+    .delete()
+    .eq('id', itemId);
+  if (error) throw error;
+}
+
 /** Reject a voice request */
 export async function rejectVoiceRequest(
   requestId: string,

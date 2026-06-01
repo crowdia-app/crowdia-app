@@ -160,6 +160,7 @@ export default function RootLayout() {
           <Stack.Screen name="user/[id]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="voices/[eventId]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="voice/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="voice/curated-list/[id]" options={{ animation: 'slide_from_right' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
