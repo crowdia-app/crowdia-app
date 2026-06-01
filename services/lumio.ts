@@ -6,6 +6,7 @@ export interface LumioRequest {
   userCity?: string;
   userLocale?: string;
   userTier?: string;
+  sessionId?: string;
 }
 
 export interface LumioEvent {
@@ -21,14 +22,16 @@ export interface LumioResponse {
   events: LumioEvent[];
   tier?: string;
   modelUsed?: string;
+  sessionId?: string;
 }
 
 export async function askLumio(
   message: string,
   userId: string | null,
+  sessionId?: string,
 ): Promise<LumioResponse> {
   const { data, error } = await supabase.functions.invoke('lumio-chat', {
-    body: { message, userId } satisfies LumioRequest,
+    body: { message, userId, sessionId } satisfies LumioRequest,
   });
 
   if (error) {
@@ -46,5 +49,6 @@ export async function askLumio(
     events: data.events ?? [],
     tier: data.tier,
     modelUsed: data.modelUsed,
+    sessionId: data.sessionId,
   };
 }

@@ -30,11 +30,11 @@ async function generateEmbedding(text: string, apiKey: string): Promise<number[]
   return data.data[0].embedding;
 }
 
-async function callGateway(messages: { role: string; content: string }[], userTier: string): Promise<{ reply: string; modelUsed: string; tier: string }> {
+async function callGateway(messages: { role: string; content: string }[], userTier: string, sessionId?: string): Promise<{ reply: string; modelUsed: string; tier: string; sessionId?: string }> {
   const res = await fetch(`${LUMIO_GATEWAY_URL}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, userTier, maxTokens: 200 }),
+    body: JSON.stringify({ messages, userTier, maxTokens: 200, sessionId }),
   });
   if (!res.ok) throw new Error(`Gateway error ${res.status}: ${await res.text()}`);
   return res.json();
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { message, userId, userCity, userTier = "free" } = await req.json();
+    const { message, userId, userCity, userTier = "free", sessionId } = await req.json();
 
     if (!message?.trim()) {
       return new Response(
@@ -116,16 +116,19 @@ Deno.serve(async (req) => {
     let reply: string;
     let modelUsed: string;
     let tier: string;
+    let returnedSessionId: string | undefined;
 
     if (LUMIO_GATEWAY_URL) {
-      const result = await callGateway(messages, userTier);
+      const result = await callGateway(messages, userTier, sessionId);
       reply = result.reply;
       modelUsed = result.modelUsed;
       tier = result.tier;
+      returnedSessionId = result.sessionId;
     } else {
       reply = await callOpenRouterDirect(messages, apiKey);
       modelUsed = CLOUD_MODEL;
       tier = "cloud";
+      returnedSessionId = sessionId ?? crypto.randomUUID();
     }
 
     if (!reply) reply = "Non sono riuscito a trovare qualcosa per te. Riprova!";
@@ -137,6 +140,7 @@ Deno.serve(async (req) => {
         lumioAvatar: foundEvents.length > 0 ? "excited" : "idle",
         tier,
         modelUsed,
+        sessionId: returnedSessionId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

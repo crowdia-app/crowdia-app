@@ -57,6 +57,7 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [lumioAvatarState, setLumioAvatarState] = useState<LumioAvatarState>('idle');
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const scrollRef = useRef<ScrollView>(null);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -145,7 +146,8 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
 
       try {
-        const response = await askLumio(trimmed, user?.id ?? null);
+        const response = await askLumio(trimmed, user?.id ?? null, sessionId);
+        if (response.sessionId) setSessionId(response.sessionId);
         const lumioMsg: ChatMessage = {
           id: `l-${Date.now()}`,
           role: 'lumio',
@@ -173,6 +175,7 @@ export function AskLumioModal({ visible, onClose }: AskLumioModalProps) {
     setMessages([]);
     setInputText('');
     setLumioAvatarState('idle');
+    setSessionId(undefined);
     onClose();
   }, [onClose]);
 
